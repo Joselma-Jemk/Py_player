@@ -1,7 +1,10 @@
 from PySide6 import QtCore, QtGui, QtWidgets
 import src.main.python.ui.widget.constant as constant
-from src.main.python.ui.widget.menu_bar import MenuBarWidgets
+from src.main.python.ui.widget.dock_widget import DockWidget
+from src.main.python.ui.widget.menu_bar import MenuBarWidget
 from src.main.python.ui.widget.player import PlayerWidget
+from src.main.python.ui.widget.staturbar_widget import StatusBar
+from src.main.python.ui.widget.tool_bar import ToolBarWidget
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -40,8 +43,14 @@ class MainWindow(QtWidgets.QMainWindow):
     def create_widgets(self):
         self.player_widget = PlayerWidget()
         self.setCentralWidget(self.player_widget)
-        self.menubar_widget = MenuBarWidgets(self)
+        self.menubar_widget = MenuBarWidget(self)
         self.setMenuBar(self.menubar_widget)
+        self.toolbar_widget = ToolBarWidget(self)
+        self.addToolBar(self.toolbar_widget)
+        self.dock_widget = DockWidget()
+        self.addDockWidget(QtGui.Qt.DockWidgetArea.LeftDockWidgetArea, self.dock_widget)
+        self.statusbar_widget = StatusBar(self)
+        self.setStatusBar(self.statusbar_widget)
 
         pass
 

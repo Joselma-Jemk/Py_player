@@ -3,7 +3,7 @@ from pathlib import Path
 import src.main.python.ui.widget.constant as constant
 
 
-class MenuBarWidgets(QtWidgets.QMenuBar):
+class MenuBarWidget(QtWidgets.QMenuBar):
     def __init__(self, parent=None, ok: bool = False):
         super().__init__(parent)
         self.ok = ok
