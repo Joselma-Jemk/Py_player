@@ -392,7 +392,7 @@ class ToolBarWidget(QtWidgets.QToolBar):
         self.player_controls = PlayerControlsWidget()
         self.time_label = TimeLabelWidget()
         self.volume_widget = VolumeWidget()
-        self.playlist_button = PlaylistButtonWidget()
+        self.btn_playlist = PlaylistButtonWidget()
 
         # Widgets conteneurs pour un meilleur alignement
         self.left_container = QtWidgets.QWidget()
@@ -409,7 +409,7 @@ class ToolBarWidget(QtWidgets.QToolBar):
 
         # Set icon font for playlist button
         if self.player_controls.icon_font:
-            self.playlist_button.setFont(self.player_controls.icon_font)
+            self.btn_playlist.setFont(self.player_controls.icon_font)
 
     def setup_connections(self):
         self.volume_widget.slider.valueChanged.connect(self.volume_widget.volume_update)
@@ -440,7 +440,7 @@ class ToolBarWidget(QtWidgets.QToolBar):
         # Remplir le conteneur droit
         self.right_layout.addStretch()
         self.right_layout.addWidget(self.volume_widget)
-        self.right_layout.addWidget(self.playlist_button)
+        self.right_layout.addWidget(self.btn_playlist)
 
         # Ajouter les conteneurs à la toolbar
         self.addWidget(self.left_container)

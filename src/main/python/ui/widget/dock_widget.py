@@ -20,7 +20,7 @@ class DockWidget(QtWidgets.QDockWidget):
         pass
 
     def customize_self(self):
-        #self.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
+        self.setWindowTitle("Playlist")
         self.setMinimumWidth(250)
         pass
 
@@ -52,7 +52,7 @@ class DockWidget(QtWidgets.QDockWidget):
 
         # Boutons pour l'onglet 2
         self.btn_save_playlist = QtWidgets.QPushButton("\ueb60")
-        self.btn_upload_playlist = QtWidgets.QPushButton("\uf09b")
+        self.btn_remove_save = QtWidgets.QPushButton("\ue872")
         pass
 
     def modify_widgets(self):
@@ -175,7 +175,7 @@ class DockWidget(QtWidgets.QDockWidget):
             (self.btn_add_to_playlist, "#4CAF50", "Ajouter un fichier", "#4CAF50", "rgba(76, 175, 80, 0.1)"),
             (self.btn_remove_to_playlist, "#FF5252", "Retirer sélection", "#FF5252", "rgba(255, 82, 82, 0.1)"),
             (self.btn_save_playlist, "#2196F3", "Sauvegarder playlist", "#2196F3", "rgba(33, 150, 243, 0.1)"),
-            (self.btn_upload_playlist, "#9C27B0", "Importer playlist", "#9C27B0", "rgba(156, 39, 176, 0.1)")
+            (self.btn_remove_save, "#FF5252", "Importer playlist", "#FF5252", "rgba(255, 82, 82, 0.1)")
         ]
 
         for btn, color, tooltip, hover_color, hover_bg in buttons_config:
@@ -200,7 +200,7 @@ class DockWidget(QtWidgets.QDockWidget):
 
         # Noms des onglets
         self.tab_widget.addTab(self.tab_current, "Playlist Active")
-        self.tab_widget.addTab(self.tab_archive, "Archives")
+        self.tab_widget.addTab(self.tab_archive, "Gestion d'état")
         pass
 
     def create_layouts(self):
@@ -262,7 +262,7 @@ class DockWidget(QtWidgets.QDockWidget):
 
         # Ajouter les boutons au layout horizontal
         self.archive_buttons_layout.addWidget(self.btn_save_playlist)
-        self.archive_buttons_layout.addWidget(self.btn_upload_playlist)
+        self.archive_buttons_layout.addWidget(self.btn_remove_save)
 
         # Définir le widget principal du dock
         self.setWidget(self.main_widget)

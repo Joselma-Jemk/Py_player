@@ -41,7 +41,7 @@ class PlayerWidget(QtWidgets.QWidget):
 
     def configure_widgets(self):
         # Configuration du slider
-        self.slider.setEnabled(True)
+        self.slider.setEnabled(False)
         self.slider.setStyleSheet("""
             QSlider::groove:horizontal {
                 background: #e0e0e0;
@@ -106,11 +106,15 @@ class PlayerWidget(QtWidgets.QWidget):
             self.slider.setValue(position)
 
     def _on_playback_state_changed(self, state):
-        """Montre/cache les éléments selon l'état de lecture"""
+        """Montre/cache les éléments selon l'état de lecture et bloque le slider"""
         if state == QtMultimedia.QMediaPlayer.PlaybackState.PlayingState:
             self._show_playing_mode()
+            # Débloquer le slider en mode lecture
+            self.slider.setEnabled(True)
         else:
             self._show_placeholder_mode()
+            # Bloquer le slider quand pas en lecture
+            self.slider.setEnabled(False)
 
     def _on_slider_pressed(self):
         self.slider_pressed = True
@@ -141,4 +145,3 @@ class PlayerWidget(QtWidgets.QWidget):
     def mouseDoubleClickEvent(self, event):
         self.signal_double_click.emit()
         super().mouseDoubleClickEvent(event)
-

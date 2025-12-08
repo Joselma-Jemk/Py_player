@@ -138,11 +138,17 @@ class MenuBarWidget(QtWidgets.QMenuBar):
     def fileMenu_customize(self):
         self.addMenu(self.fileMenu)
 
+        self.act_open_file = self.fileMenu.addAction(
+            QtGui.QIcon(constant.ICON_OPEN_FILE) if constant.ICON_OPEN_FILE else "",
+            "Ouvrir un fichier"
+        )
+        self.act_open_file.setShortcut("Ctrl+O")
+
         self.act_open_folder = self.fileMenu.addAction(
             QtGui.QIcon(constant.ICON_OPEN_FOLDER) if constant.ICON_OPEN_FOLDER else "",
-            "Ouvrir..."
+            "Ouvrir un dossier"
         )
-        self.act_open_folder.setShortcut("Ctrl+O")
+        self.act_open_folder.setShortcut("Ctrl+D")
 
         self.act_app_exit = self.fileMenu.addAction(
             QtGui.QIcon(constant.ICON_EXIT) if constant.ICON_EXIT else "",
@@ -185,27 +191,17 @@ class MenuBarWidget(QtWidgets.QMenuBar):
         )
         self.act_show_playlist.setShortcut("Ctrl+P")
 
-        self.act_add_to_playlist = self.playlistMenu.addAction(
-            QtGui.QIcon(constant.ICON_PLAYLIST_ADD) if constant.ICON_PLAYLIST_ADD else "",
-            "Ajouter un fichier à la playlist  "
-        )
-
-        self.act_remove_to_playlist = self.playlistMenu.addAction(
-            QtGui.QIcon(constant.ICON_PLAYLIST_REMOVE) if constant.ICON_PLAYLIST_REMOVE else "",
-            "Supprimer de la playlist  "
-        )
-
         self.act_save_playlist_state = self.playlistMenu.addAction(
             QtGui.QIcon(constant.ICON_SAVE) if constant.ICON_SAVE else "",
-            "Enregistrer l'état de la playlist"
+            "Sauvegarder la playlist"
         )
         self.act_save_playlist_state.setShortcut("Ctrl+S")
 
-        self.act_upload_playlist_state = self.playlistMenu.addAction(
-            QtGui.QIcon(constant.ICON_UPLOAD) if constant.ICON_UPLOAD else "",
-            "Charger un état de la playlist"
+        self.act_remove_playlist_state = self.playlistMenu.addAction(
+            QtGui.QIcon(constant.ICON_DELETE) if constant.ICON_DELETE else "",
+            "Supprimer une sauvegarde"
         )
-        self.act_upload_playlist_state.setShortcut("Ctrl+U")
+        self.act_remove_playlist_state.setShortcut("Ctrl+U")
         pass
 
     def helpMenu_customize(self):
