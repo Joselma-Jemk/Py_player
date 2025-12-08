@@ -319,7 +319,11 @@ PRESSED_COLOR = "#636366"
 PRINCIPAL_TEXT_COLOR = "#f2f2f7"
 
 # Extensions supportées
-SUPPORTED_VIDEO_FORMATS = {".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm"}
+
+VIDEO_EXTENSIONS = {
+        '.mp4', '.avi', '.mkv', '.mov', '.webm',
+        '.wmv', '.flv', '.mpeg', '.mpg', '.m4v'
+    }
 SUPPORTED_AUDIO_FORMATS = {".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a"}
 
 # Fonction utilitaire pour changer de thème
