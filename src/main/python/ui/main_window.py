@@ -17,8 +17,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.customize_self()
         self.create_widgets()
         self.modify_widgets()
-        self.create_layouts()
-        self.add_widgets_to_layouts()
         self.setup_connections()
         pass
 
@@ -38,6 +36,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setStyleSheet(f"background: {constant.SECONDARY_COLOR};")
 
 
+
         pass
 
     def create_widgets(self):
@@ -46,21 +45,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.menubar_widget = MenuBarWidget(self)
         self.setMenuBar(self.menubar_widget)
         self.toolbar_widget = ToolBarWidget(self)
-        self.addToolBar(self.toolbar_widget)
+        self.addToolBar(QtGui.Qt.ToolBarArea.BottomToolBarArea, self.toolbar_widget)
         self.dock_widget = DockWidget()
-        self.addDockWidget(QtGui.Qt.DockWidgetArea.LeftDockWidgetArea, self.dock_widget)
+        self.addDockWidget(QtGui.Qt.DockWidgetArea.RightDockWidgetArea, self.dock_widget)
         self.statusbar_widget = StatusBar(self)
         self.setStatusBar(self.statusbar_widget)
 
         pass
 
     def modify_widgets(self):
-        pass
-
-    def create_layouts(self):
-        pass
-
-    def add_widgets_to_layouts(self):
+        self.toolbar_widget.setMovable(False)
         pass
 
     def setup_connections(self):

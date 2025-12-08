@@ -19,6 +19,7 @@ class MenuBarWidget(QtWidgets.QMenuBar):
 
     def setup_ui(self):
         self.icon_font_initialize()
+        self.customize_self()
         self.create_menu()
         self.apply_palette()   # <-- Palette appliquée ici
         self.fileMenu_customize()
@@ -36,13 +37,62 @@ class MenuBarWidget(QtWidgets.QMenuBar):
             self.icon_font.setPointSize(size)
         pass
 
+    def customize_self(self):
+        self.setMinimumHeight(15)
+        self.setStyleSheet("""
+            /* Barre de menu principale : espacement et police plus grande */
+            QMenuBar {
+                padding-top: 17px;   /* Plus d'espace au top pour éviter d'être collé */
+                padding-bottom: 15px; /* Symétrique en bas */
+                spacing: 8px;       /* Espace entre les menus (Fichier, Lecture, etc.) */
+                font-size: 17px;    /* Taille de police de base pour la barre (augmentée) */
+                font-family: "Segoe UI", Arial, sans-serif;  /* Police moderne, fallback */
+            }
+
+            /* Items de la barre (Fichier, Lecture, etc.) : padding et police */
+            QMenuBar::item {
+                padding: 8px 16px;  /* Padding vertical plus généreux pour la lisibilité */
+                margin: 0px 2px;    /* Petit espace horizontal entre items */
+                font-size: 12px;    /* Même taille que la barre */
+            }
+
+            /* Hover sur items de la barre */
+            QMenuBar::item:selected {
+                border-left: 3px solid #00aaff;
+                background-color: transparent;  /* Pas de fond, laisse la palette gérer le highlight */
+            }
+
+            /* Menus déroulants : police et espacement */
+            QMenu {
+                font-size: 11px;    /* Légèrement plus petite pour les sous-items, mais augmentée vs. défaut */
+                padding: 4px 0px;   /* Espacement vertical dans le menu */
+            }
+
+            QMenu::item {
+                padding: 8px 20px;  /* Padding plus généreux pour les actions (Lire, Stop, etc.) */
+                font-size: 11px;    /* Taille cohérente */
+            }
+
+            /* Hover sur items de menu déroulant */
+            QMenu::item:selected {
+                border-left: 3px solid #00aaff;
+                background-color: transparent;  /* Laisse la palette pour le vrai hover (dark_hover) */
+            }
+
+            /* Raccourcis (Ctrl+O, etc.) : police un peu plus petite pour ne pas surcharger */
+            QMenu::item::shortcut {
+                font-size: 10px;
+                color: inherit;  /* Hérite de la palette pour le texte */
+            }
+        """)
+        pass
+
     def create_menu(self):
         self.fileMenu = QtWidgets.QMenu("Fichier")
         self.playMenu = QtWidgets.QMenu("Lecture")
         self.playlistMenu = QtWidgets.QMenu("Playlist")
         self.helpMenu = QtWidgets.QMenu("Aide")
         pass
-
     # ------------------------------------------------------------
     # 🎨 APPLICATION DE LA PALETTE SUR TOUS LES MENUS
     # ------------------------------------------------------------
@@ -84,23 +134,15 @@ class MenuBarWidget(QtWidgets.QMenuBar):
         bar_pal.setColor(QtGui.QPalette.WindowText, text_color)
         self.setPalette(bar_pal)
         self.setAutoFillBackground(True)
-
     # ------------------------------------------------------------
-
     def fileMenu_customize(self):
         self.addMenu(self.fileMenu)
 
-        self.act_open_file = self.fileMenu.addAction(
-            QtGui.QIcon(constant.ICON_OPEN_FILE) if constant.ICON_OPEN_FILE else "",
-            "Ouvrir un fichier  "
-        )
-        self.act_open_file.setShortcut("Ctrl+I")
-
         self.act_open_folder = self.fileMenu.addAction(
             QtGui.QIcon(constant.ICON_OPEN_FOLDER) if constant.ICON_OPEN_FOLDER else "",
-            "Ouvrir un dossier  "
+            "Ouvrir..."
         )
-        self.act_open_folder.setShortcut("Ctrl+D")
+        self.act_open_folder.setShortcut("Ctrl+O")
 
         self.act_app_exit = self.fileMenu.addAction(
             QtGui.QIcon(constant.ICON_EXIT) if constant.ICON_EXIT else "",
@@ -132,19 +174,6 @@ class MenuBarWidget(QtWidgets.QMenuBar):
             QtGui.QIcon(constant.ICON_SKIP_PREVIOUS) if constant.ICON_SKIP_PREVIOUS else "",
             "Lire le précédent"
         )
-
-        self.act_mute_mode = self.playMenu.addAction(
-            QtGui.QIcon(constant.ICON_VOLUME_UP) if constant.ICON_VOLUME_UP else "",
-            "Mute désactivé"
-        )
-        self.act_mute_mode.setCheckable(True)
-
-        self.act_full_screen_mode = self.playMenu.addAction(
-            QtGui.QIcon(constant.ICON_FULLSCREEN) if constant.ICON_FULLSCREEN else "",
-            "Mode plein écran"
-        )
-        self.act_full_screen_mode.setCheckable(True)
-        self.addSeparator()
         pass
 
     def playlistMenu_customize(self):
@@ -165,6 +194,18 @@ class MenuBarWidget(QtWidgets.QMenuBar):
             QtGui.QIcon(constant.ICON_PLAYLIST_REMOVE) if constant.ICON_PLAYLIST_REMOVE else "",
             "Supprimer de la playlist  "
         )
+
+        self.act_save_playlist_state = self.playlistMenu.addAction(
+            QtGui.QIcon(constant.ICON_SAVE) if constant.ICON_SAVE else "",
+            "Enregistrer l'état de la playlist"
+        )
+        self.act_save_playlist_state.setShortcut("Ctrl+S")
+
+        self.act_upload_playlist_state = self.playlistMenu.addAction(
+            QtGui.QIcon(constant.ICON_UPLOAD) if constant.ICON_UPLOAD else "",
+            "Charger un état de la playlist"
+        )
+        self.act_upload_playlist_state.setShortcut("Ctrl+U")
         pass
 
     def helpMenu_customize(self):
@@ -186,7 +227,6 @@ class MenuBarWidget(QtWidgets.QMenuBar):
 
     def setup_connection(self):
         self.act_play.triggered.connect(self.play_pause_update)
-        self.act_mute_mode.triggered.connect(self.mute_icon_update)
         pass
 
     def play_pause_update(self):
@@ -200,17 +240,4 @@ class MenuBarWidget(QtWidgets.QMenuBar):
                 self.act_play.setIcon(QtGui.QIcon(constant.ICON_PLAY))
             self.act_play.setToolTip("Lire")
             self.act_play.setText("Lire")
-        pass
-
-    def mute_icon_update(self):
-        if self.act_mute_mode.text() == "Mute désactivé":
-            if constant.ICON_VOLUME_OFF:
-                self.act_mute_mode.setIcon(QtGui.QIcon(constant.ICON_VOLUME_OFF))
-            self.act_mute_mode.setToolTip("Mute activé")
-            self.act_mute_mode.setText("Mute activé")
-        else:
-            if constant.ICON_VOLUME_UP:
-                self.act_mute_mode.setIcon(QtGui.QIcon(constant.ICON_VOLUME_UP))
-            self.act_mute_mode.setToolTip("Mute désactivé")
-            self.act_mute_mode.setText("Mute désactivé")
         pass

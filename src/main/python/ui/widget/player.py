@@ -12,13 +12,22 @@ class PlayerWidget(QtWidgets.QWidget):
         self.setup_ui()
 
     def setup_ui(self):
+        self.customize_self()
         self.create_widgets()
         self.configure_widgets()
         self.create_layout()
         self.setup_connections()
-
-        # État initial : afficher seulement le placeholder
         self._show_placeholder_mode()
+
+    def customize_self(self):
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Expanding,
+            QtWidgets.QSizePolicy.Policy.Expanding
+        )
+        self.setMinimumWidth(650)
+        self.setMinimumHeight(400)
+
+        pass
 
     def create_widgets(self):
         self.video_output = QtMultimediaWidgets.QVideoWidget()
@@ -27,7 +36,7 @@ class PlayerWidget(QtWidgets.QWidget):
         self.video_player.setVideoOutput(self.video_output)
         self.video_player.setAudioOutput(self.audio_output)
 
-        self.slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
         self.placeholder_label = QtWidgets.QLabel()
 
     def configure_widgets(self):
@@ -63,7 +72,7 @@ class PlayerWidget(QtWidgets.QWidget):
 
     def create_layout(self):
         self.main_layout = QtWidgets.QVBoxLayout(self)
-        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setContentsMargins(5, 3, 0, 3)
         self.main_layout.setSpacing(0)
 
         # Ajouter tous les widgets
@@ -83,9 +92,9 @@ class PlayerWidget(QtWidgets.QWidget):
         self.slider.sliderMoved.connect(self._on_slider_moved)
 
         # Raccourcis clavier
-        QtGui.QShortcut(QtCore.Qt.Key_Left, self,
+        QtGui.QShortcut(QtCore.Qt.Key.Key_Left, self,
                         lambda: self._seek_relative(-10000))
-        QtGui.QShortcut(QtCore.Qt.Key_Right, self,
+        QtGui.QShortcut(QtCore.Qt.Key.Key_Right, self,
                         lambda: self._seek_relative(10000))
 
     def _on_duration_changed(self, duration):
@@ -98,7 +107,7 @@ class PlayerWidget(QtWidgets.QWidget):
 
     def _on_playback_state_changed(self, state):
         """Montre/cache les éléments selon l'état de lecture"""
-        if state == QtMultimedia.QMediaPlayer.PlayingState:
+        if state == QtMultimedia.QMediaPlayer.PlaybackState.PlayingState:
             self._show_playing_mode()
         else:
             self._show_placeholder_mode()
@@ -132,3 +141,4 @@ class PlayerWidget(QtWidgets.QWidget):
     def mouseDoubleClickEvent(self, event):
         self.signal_double_click.emit()
         super().mouseDoubleClickEvent(event)
+
