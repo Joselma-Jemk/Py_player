@@ -2,6 +2,9 @@ from PySide6 import QtCore, QtGui, QtWidgets
 import src.main.python.ui.widget.constant as constant
 from pathlib import Path
 
+from src.main.python.api.playlist import PlayMode
+
+
 class VolumeWidget(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -188,6 +191,7 @@ class PlayerControlsWidget(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.icon_font = None
+        self._play_mode = PlayMode.NORMAL
         self.setup_ui()
 
     def setup_ui(self):
@@ -207,7 +211,7 @@ class PlayerControlsWidget(QtWidgets.QWidget):
         self.btn_stop = QtWidgets.QPushButton("\ue047")
         self.btn_skipnext = QtWidgets.QPushButton("\ue044")
         self.btn_skipprevious = QtWidgets.QPushButton("\ue045")
-        self.btn_play_mode = QtWidgets.QPushButton("\ue043")
+        self.btn_play_mode = QtWidgets.QPushButton("\ue040")
         self.btn_list = [self.btn_play_pause, self.btn_skipprevious, self.btn_stop, self.btn_skipnext,
                          self.btn_play_mode]
 
@@ -270,6 +274,10 @@ class PlayerControlsWidget(QtWidgets.QWidget):
         for btn in self.btn_list:
             self.lyt.addWidget(btn)
 
+    @property
+    def play_mode(self):
+        return self._play_mode
+
     def btn_play_pause_update(self):
         if self.btn_play_pause.text() == "\ue037":
             self.btn_play_pause.setText("\ue034")
@@ -290,18 +298,27 @@ class PlayerControlsWidget(QtWidgets.QWidget):
         self.play_mode_tooltip()
 
     def play_mode_tooltip(self):
-        # Remplacement: constant.PRINCIPAL_TEXT_COLOR = "#f2f2f7"
         if self.btn_play_mode.text() == "\ue040":
-            self.btn_play_mode.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Lecture de la playlist</b>")
+            self.btn_play_mode.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Lecture de la playlist</b>"
+            )
+            self._play_mode = PlayMode.LOOP_ALL
+
         elif self.btn_play_mode.text() == "\ue041":
             self.btn_play_mode.setToolTip(
-                "<b style='color:#f2f2f7;font-weight:bold;'>Lecture en boucle du fichier actuelle</b>")
+                "<b style='color:#f2f2f7;font-weight:bold;'>Lecture en boucle du fichier actuelle</b>"
+            )
+            self._play_mode = PlayMode.LOOP_ONE
         elif self.btn_play_mode.text() == "\ue14b":
             self.btn_play_mode.setToolTip(
-                "<b style='color:#f2f2f7;font-weight:bold;'>Lire une seul fois le fichier actuelle</b>")
+                "<b style='color:#f2f2f7;font-weight:bold;'>Lire une seul fois le fichier actuelle</b>"
+            )
+            self._play_mode = PlayMode.NORMAL
         else:
             self.btn_play_mode.setToolTip(
-                "<b style='color:#f2f2f7;font-weight:bold;'>Lecture aléatoire de la playlist</b>")
+                "<b style='color:#f2f2f7;font-weight:bold;'>Lecture aléatoire de la playlist en boucle</b>"
+            )
+            self._play_mode = PlayMode.SHUFFLE
+        pass
 
 class TimeLabelWidget(QtWidgets.QLabel):
     def __init__(self, parent=None):
@@ -375,7 +392,7 @@ class PlaylistButtonWidget(QtWidgets.QPushButton):
            }
             """
         self.setStyleSheet(buttons_style)
-        self.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Voir la playlist</b>")
+        self.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Masquer le panneau des playlists</b>")
 
 class ToolBarWidget(QtWidgets.QToolBar):
     def __init__(self, parent=None):

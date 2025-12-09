@@ -187,21 +187,21 @@ class MenuBarWidget(QtWidgets.QMenuBar):
 
         self.act_show_playlist = self.playlistMenu.addAction(
             QtGui.QIcon(constant.ICON_PLAYLIST) if constant.ICON_PLAYLIST else "",
-            "Voir la playlist  "
+            "Masquer le panneau des playlists"
         )
         self.act_show_playlist.setShortcut("Ctrl+P")
 
         self.act_save_playlist_state = self.playlistMenu.addAction(
             QtGui.QIcon(constant.ICON_SAVE) if constant.ICON_SAVE else "",
-            "Sauvegarder la playlist"
+            "Créer une nouvelle playlist"
         )
-        self.act_save_playlist_state.setShortcut("Ctrl+S")
+        self.act_save_playlist_state.setShortcut("Ctrl+N")
 
         self.act_remove_playlist_state = self.playlistMenu.addAction(
             QtGui.QIcon(constant.ICON_DELETE) if constant.ICON_DELETE else "",
-            "Supprimer une sauvegarde"
+            "Supprimer une playlist"
         )
-        self.act_remove_playlist_state.setShortcut("Ctrl+U")
+        self.act_remove_playlist_state.setShortcut("Ctrl+S")
         pass
 
     def helpMenu_customize(self):

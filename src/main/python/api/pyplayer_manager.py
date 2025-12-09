@@ -4,6 +4,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
+from PySide6 import QtCore
+
 from src.main.python.api.playlist import Playlist
 from src.main.python.ui.widget.constant import pyplayer_directory
 
@@ -46,6 +48,19 @@ class PlaylistManager:
         self._load_all_playlists()
 
         self.auto_cleanup_backups_if_needed(threshold_count=50)
+
+        #Initialisé si vide
+        if self.playlist_count == 0:
+            playlist = self.create_playlist(
+                source_path=Path(QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.StandardLocation.MoviesLocation)),
+                name="PLAYLIST",
+            )
+
+        # Définir un actif par défaut
+        if self.active_playlist is None:
+            for key, playlist in self.all_playlist.items():
+                self.set_active_playlist_by_name(playlist.name)
+                break
 
         logger.info(f"PlaylistManager initialisé: {len(self._playlists)} playlists chargées")
 
@@ -334,6 +349,65 @@ class PlaylistManager:
                 results.append(playlist_id)
 
         return results
+
+    def find_playlist(self, search_term: str, search_by: str = "name") -> Optional[Playlist]:
+        """
+        Recherche une playlist selon différents critères.
+
+        Args:
+            search_term: Terme de recherche (nom, ID, etc.)
+            search_by: Critère de recherche. Options:
+                - "name": Recherche par nom (exact ou partiel selon exact_match)
+                - "id": Recherche par ID exact
+                - "path": Recherche par chemin (contient le terme)
+                - "description": Recherche dans la description
+                - "all": Recherche dans tous les champs
+
+        Returns:
+            Première Playlist trouvée ou None
+        """
+        search_term_lower = search_term.lower().strip()
+
+        for playlist_id, playlist in self._playlists.items():
+            try:
+                if search_by == "id":
+                    # Recherche exacte par ID
+                    if playlist_id == search_term:
+                        return playlist
+
+                elif search_by == "name":
+                    # Recherche par nom (insensible à la casse)
+                    if search_term_lower in playlist.name.lower():
+                        return playlist
+
+                elif search_by == "path":
+                    # Recherche par chemin si disponible
+                    if playlist.path and search_term_lower in str(playlist.path).lower():
+                        return playlist
+
+                    # Recherche dans le chemin de sauvegarde
+                    if hasattr(playlist, 'save_file_path') and playlist.save_file_path:
+                        if search_term_lower in str(playlist.save_file_path).lower():
+                            return playlist
+
+                elif search_by == "description":
+                    # Recherche dans la description
+                    if playlist.description and search_term_lower in playlist.description.lower():
+                        return playlist
+
+                elif search_by == "all":
+                    # Recherche dans tous les champs
+                    if (search_term_lower in playlist.name.lower() or
+                            playlist_id == search_term or
+                            (playlist.path and search_term_lower in str(playlist.path).lower()) or
+                            (playlist.description and search_term_lower in playlist.description.lower())):
+                        return playlist
+
+            except AttributeError:
+                # Ignorer les playlists qui n'ont pas tous les attributs
+                continue
+
+        return None
 
     def get_playlist_info(self, playlist_id: str) -> Optional[Dict[str, Any]]:
         """

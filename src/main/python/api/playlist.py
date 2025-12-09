@@ -38,7 +38,6 @@ class PlayMode(Enum):
         except ValueError:
             return cls.NORMAL
 
-
 @dataclass
 class PlaylistState:
     """
@@ -162,7 +161,6 @@ class PlaylistState:
             play_history=data.get('play_history', [])
         )
 
-
 class Playlist:
     """Représente une playlist de vidéos, chargée depuis un dossier ou vide."""
 
@@ -207,6 +205,15 @@ class Playlist:
     # ============================================
     # PROPRIÉTÉS PUBLIQUES
     # ============================================
+    @property
+    def all_video(self) -> List[Video]:
+        """
+        Retourne toutes les vidéos de la playlist.
+
+        Returns:
+            Liste de tous les objets Video dans la playlist
+        """
+        return self.videos
 
     @property
     def id(self) -> str:
@@ -386,6 +393,30 @@ class Playlist:
     # ============================================
     # MÉTHODES PUBLIQUES DE NAVIGATION
     # ============================================
+    def ensure_active(self) -> bool:
+        """
+        Vérifie et active la playlist si nécessaire.
+
+        Returns:
+            bool: True si playlist est/était activée, False si vide
+        """
+        # Si playlist vide, impossible d'activer
+        if not self.videos:
+            return False
+
+        # Si déjà active, ne rien faire
+        if 0 <= self.current_index < len(self.videos):
+            return True
+
+        # Sinon, activer la première vidéo
+        self.current_index = 0
+
+        # Pour le mode shuffle, initialiser l'ordre
+        if self.play_mode == PlayMode.SHUFFLE:
+            self._generate_shuffle_order()
+            self._shuffle_position = 0 if self._shuffle_order else -1
+
+        return True
 
     def get_next_video(self) -> Tuple[Optional[Video], int]:
         """
@@ -563,7 +594,46 @@ class Playlist:
     # MÉTHODES PUBLIQUES DE GESTION DES VIDÉOS
     # ============================================
 
-    def add_video(self, file_path: Path) -> bool:
+    def add_video_from_dir_path(self, dir_path: Path) -> List[Video]:
+        """
+        Ajoute toutes les vidéos valides d'un dossier à la playlist.
+
+        Args:
+            dir_path: Chemin du dossier contenant les vidéos
+
+        Returns:
+            Liste des objets Video ajoutés (peut être vide)
+        """
+        added_videos = []
+
+        # Vérifier que le chemin existe et est un dossier
+        if not dir_path.exists():
+            logger.warning(f"Dossier introuvable: {dir_path}")
+            return added_videos
+
+        if not dir_path.is_dir():
+            logger.warning(f"Le chemin n'est pas un dossier: {dir_path}")
+            return added_videos
+
+        try:
+            # Parcourir récursivement le dossier
+            for file_path in dir_path.rglob('*'):
+                if file_path.is_file():
+                    # Vérifier l'extension
+                    if file_path.suffix.lower() in VIDEO_EXTENSIONS:
+                        # Ajouter la vidéo
+                        video = self.add_video(file_path)
+                        if video:
+                            added_videos.append(video)
+
+            logger.info(f"Ajouté {len(added_videos)} vidéos depuis: {dir_path}")
+            return added_videos
+
+        except Exception as e:
+            logger.error(f"Erreur lors de l'ajout des vidéos depuis {dir_path}: {e}")
+            return added_videos
+
+    def add_video(self, file_path: Path) -> Video | None :
         """
         Ajoute une vidéo à la playlist.
 
@@ -575,28 +645,29 @@ class Playlist:
         """
         try:
             if not file_path.exists() or file_path.is_dir():
-                return False
+                return None
 
             suffix = file_path.suffix.lower()
             if suffix not in VIDEO_EXTENSIONS:
-                return False
+                return None
 
             # Vérifier doublon par chemin exact
             if any(v.file_path == file_path for v in self.videos):
-                return False
+                return None
 
-            self.videos.append(Video(file_path))
+            video = Video(file_path)
+            self.videos.append(video)
             self.p_state.total_videos = self.total
             self.p_state.total_duration = self.total_duration
 
             # Sauvegarde automatique
             self._auto_save_if_needed()
 
-            return True
+            return video
 
         except Exception as e:
             logger.error(f"Erreur add_video {file_path}: {e}")
-            return False
+            return None
 
     def remove_video(self, identifier: Union[Video, Path, int]) -> bool:
         """
@@ -813,7 +884,7 @@ class Playlist:
     # PROPRIÉTÉS ET MÉTHODES D'ACCÈS AUX VIDÉOS
     # ============================================
 
-    def get_video_by_id(self, identifier: Union[int, str, Video, Path]) -> Optional[Video]:
+    def find_video_by_id(self, identifier: Union[int, str, Video, Path]) -> Optional[Video]:
         """
         Recherche une vidéo par différents types d'identifiants.
 
@@ -908,7 +979,7 @@ class Playlist:
                 return -1
 
         # 3. Si c'est un chemin Path ou une chaîne
-        video = self.get_video_by_id(identifier)
+        video = self.find_video_by_id(identifier)
         if video:
             try:
                 return self.videos.index(video)
@@ -973,7 +1044,7 @@ class Playlist:
         Returns:
             Dictionnaire avec les informations de la vidéo ou None
         """
-        video = self.get_video_by_id(identifier)
+        video = self.find_video_by_id(identifier)
         if not video:
             return None
 

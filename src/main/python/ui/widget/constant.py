@@ -314,6 +314,8 @@ THIRD_COLOR = "#3a3a3c"
 HOVER_COLOR = "#48484a"
 PRESSED_COLOR = "#636366"
 PRINCIPAL_TEXT_COLOR = "#f2f2f7"
+OK_ONE_COLOR = "#2196F3"
+ACCENT_COLOR = "#ff3b30"
 
 # Extensions supportées
 
