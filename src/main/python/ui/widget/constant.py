@@ -87,7 +87,7 @@ def find_path(
         return True
 
     def search_recursive(current_dir: Path, current_depth: int) -> bool:
-        if max_depth >= 0 and current_depth > max_depth:
+        if 0 <= max_depth < current_depth:
             return False
 
         try:
@@ -124,9 +124,6 @@ try:
     if preferences_path and preferences_path.exists():
         with open(preferences_path, 'r', encoding='utf-8') as f:
             preferences = json.load(f)
-    else:
-        preferences = {"icon_number": 1, "icon_name": "default_icon", "theme": "light"}
-        print("⚠️ Fichier preferences.json non trouvé, utilisation des valeurs par défaut")
 except json.JSONDecodeError as e:
     print(f"❌ Erreur JSON dans preferences.json : {e}")
     preferences = {"icon_number": 1, "icon_name": "default_icon", "theme": "light"}

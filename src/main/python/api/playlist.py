@@ -3,14 +3,16 @@ import hashlib
 import json
 import random
 import logging
-
-from enum import Enum
 from pathlib import Path
 from typing import Optional, List, Union, Tuple, Dict, Any
 from dataclasses import dataclass, field
+from enum import Enum
 
-from src.main.python.api.video_class import Video
+from src.main.python.api.video import Video
 from src.main.python.ui.widget.constant import VIDEO_EXTENSIONS
+
+# Configurer le logging
+logger = logging.getLogger(__name__)
 
 
 class PlayMode(Enum):
@@ -31,7 +33,11 @@ class PlayMode(Enum):
     @classmethod
     def from_dict(cls, data: str) -> 'PlayMode':
         """Désérialisation depuis une chaîne."""
-        return cls(data)
+        try:
+            return cls(data)
+        except ValueError:
+            return cls.NORMAL
+
 
 @dataclass
 class PlaylistState:
@@ -147,7 +153,7 @@ class PlaylistState:
 
         return cls(
             playlist_id=data.get('playlist_id', ''),
-            play_mode= play_mode  if play_mode else PlayMode.NORMAL,
+            play_mode=play_mode if play_mode else PlayMode.NORMAL,
             current_index=data.get('current_index', -1),
             current_video_path=video_path,
             total_videos=data.get('total_videos', 0),
@@ -155,6 +161,7 @@ class PlaylistState:
             is_playing=data.get('is_playing', False),
             play_history=data.get('play_history', [])
         )
+
 
 class Playlist:
     """Représente une playlist de vidéos, chargée depuis un dossier ou vide."""
@@ -171,8 +178,12 @@ class Playlist:
         self.unique_id = self._generate_id()
         self.play_mode = PlayMode.NORMAL
         self.videos: List[Video] = []
+        self.description = None
 
-        #State
+        # Chemin de sauvegarde automatique
+        self._save_file_path: Optional[Path] = None
+
+        # State
         self.p_state = PlaylistState(
             playlist_id=self.unique_id,
             total_videos=len(self.videos),
@@ -280,6 +291,98 @@ class Playlist:
             video_path=self.videos[value].file_path if value >= 0 else None
         )
 
+        # Sauvegarde automatique
+        self._auto_save_if_needed()
+
+    @property
+    def current_video(self) -> Optional[Video]:
+        """
+        Retourne la vidéo actuellement active.
+
+        Returns:
+            Objet Video ou None si aucune vidéo active
+        """
+        current_idx = self.current_index
+        if 0 <= current_idx < len(self.videos):
+            return self.videos[current_idx]
+        return None
+
+    @property
+    def current_video_info(self) -> Dict[str, Any]:
+        """
+        Retourne des informations détaillées sur la vidéo courante.
+
+        Returns:
+            Dictionnaire avec les informations de la vidéo courante
+        """
+        video = self.current_video
+        if not video:
+            return {
+                'has_video': False,
+                'index': -1,
+                'name': None,
+                'path': None,
+                'duration': 0,
+                'position': 0,
+                'progress': 0.0
+            }
+
+        return {
+            'has_video': True,
+            'index': self.current_index,
+            'name': video.name,
+            'path': str(video.file_path) if video.file_path else None,
+            'duration': video.duration,
+            'position': video.state.position if hasattr(video, 'state') else 0,
+            'progress': video.state.progress if hasattr(video, 'state') and video.duration > 0 else 0.0,
+            'playing': video.state.playing if hasattr(video, 'state') else False,
+            'muted': video.state.muted if hasattr(video, 'state') else False,
+            'volume': video.state.volume if hasattr(video, 'state') else 1.0,
+            'resolution': f"{video.width}x{video.height}" if video.width > 0 and video.height > 0 else "Inconnue"
+        }
+
+    @property
+    def save_file_path(self) -> Optional[Path]:
+        """Chemin de fichier pour la sauvegarde automatique."""
+        return self._save_file_path
+
+    @save_file_path.setter
+    def save_file_path(self, value: Optional[Path]) -> None:
+        """Définit le chemin de sauvegarde automatique."""
+        self._save_file_path = value
+        if value:
+            value.parent.mkdir(parents=True, exist_ok=True)
+
+    # ============================================
+    # MÉTHODES DE SAUVEGARDE AUTOMATIQUE
+    # ============================================
+
+    def _auto_save_if_needed(self) -> None:
+        """
+        Sauvegarde automatiquement si un chemin de sauvegarde est défini.
+        Silencieuse en cas d'erreur.
+        """
+        if self._save_file_path and self._save_file_path.parent.exists():
+            try:
+                # Sauvegarde sans backup (pour éviter une boucle infinie de backups)
+                self.save_to_file(self._save_file_path, create_backup=False)
+            except Exception as e:
+                # On ne veut pas que les erreurs de sauvegarde bloquent l'application
+                logger.debug(f"Auto-save échoué: {e}")
+
+    def set_auto_save(self, file_path: Optional[Path]) -> None:
+        """
+        Configure la sauvegarde automatique.
+
+        Args:
+            file_path: Chemin de sauvegarde (None pour désactiver)
+        """
+        self.save_file_path = file_path
+        if file_path:
+            logger.info(f"Sauvegarde automatique activée: {file_path}")
+        else:
+            logger.info("Sauvegarde automatique désactivée")
+
     # ============================================
     # MÉTHODES PUBLIQUES DE NAVIGATION
     # ============================================
@@ -322,7 +425,7 @@ class Playlist:
             # Mettre à jour l'état
             self.p_state.update_state(
                 index=new_idx,
-                playing=True,  # ou selon ta logique
+                playing=True,
                 video_path=video.file_path if video else None,
                 mode=self.play_mode
             )
@@ -331,10 +434,13 @@ class Playlist:
             self.p_state.total_videos = self.total
             self.p_state.total_duration = self.total_duration
 
+            # Sauvegarde automatique
+            self._auto_save_if_needed()
+
             return video, new_idx
 
         except Exception as e:
-            print(f"Erreur get_next_video: {e}")
+            logger.error(f"Erreur get_next_video: {e}")
             return None, -1
 
     def get_previous_video(self) -> Tuple[Optional[Video], int]:
@@ -377,10 +483,13 @@ class Playlist:
                 video_path=video.file_path if video else None
             )
 
+            # Sauvegarde automatique
+            self._auto_save_if_needed()
+
             return video, new_idx
 
         except Exception as e:
-            print(f"Erreur get_previous_video: {e}")
+            logger.error(f"Erreur get_previous_video: {e}")
             return None, -1
 
     def set_play_mode(self, mode: PlayMode) -> None:
@@ -391,9 +500,9 @@ class Playlist:
 
             old_mode = self.play_mode
 
-            # CRITIQUE: Sauvegarder la position AVANT de changer quoi que ce soit
+            # Sauvegarder la position AVANT de changer quoi que ce soit
             if old_mode == PlayMode.SHUFFLE:
-                # En mode shuffle, sauvegarder l'index réel avant de vider les structures
+                # En mode shuffle, sauvegarder l'index réel
                 current_video_idx = -1
                 if (self._shuffle_order and
                         0 <= self._shuffle_position < len(self._shuffle_order)):
@@ -423,13 +532,13 @@ class Playlist:
                     try:
                         self._shuffle_position = self._shuffle_order.index(current_video_idx)
                     except ValueError:
-                        # La vidéo n'est pas dans l'ordre shuffle (peut arriver si vidéo supprimée)
+                        # La vidéo n'est pas dans l'ordre shuffle
                         self._shuffle_position = 0 if self._shuffle_order else -1
                 else:
                     self._shuffle_position = -1
 
             elif old_mode == PlayMode.SHUFFLE and mode != PlayMode.SHUFFLE:
-                # Quitte le mode shuffle - nettoyer APRÈS avoir sauvegardé
+                # Quitte le mode shuffle - nettoyer
                 self._shuffle_order.clear()
                 self._shuffle_history.clear()
                 self._shuffle_position = -1
@@ -437,8 +546,11 @@ class Playlist:
                 # Restaurer l'index
                 self._current_index = current_video_idx if current_video_idx >= 0 else -1
 
+            # Sauvegarde automatique
+            self._auto_save_if_needed()
+
         except Exception as e:
-            print(f"Erreur set_play_mode {self.play_mode} -> {mode}: {e}")
+            logger.error(f"Erreur set_play_mode {self.play_mode} -> {mode}: {e}")
             # En cas d'erreur, revenir à un état stable
             self.play_mode = PlayMode.NORMAL
             self._current_index = -1
@@ -464,18 +576,26 @@ class Playlist:
         try:
             if not file_path.exists() or file_path.is_dir():
                 return False
+
             suffix = file_path.suffix.lower()
             if suffix not in VIDEO_EXTENSIONS:
                 return False
+
             # Vérifier doublon par chemin exact
             if any(v.file_path == file_path for v in self.videos):
                 return False
+
             self.videos.append(Video(file_path))
             self.p_state.total_videos = self.total
             self.p_state.total_duration = self.total_duration
+
+            # Sauvegarde automatique
+            self._auto_save_if_needed()
+
             return True
+
         except Exception as e:
-            print(f"Erreur add_video {file_path}: {e}")
+            logger.error(f"Erreur add_video {file_path}: {e}")
             return False
 
     def remove_video(self, identifier: Union[Video, Path, int]) -> bool:
@@ -515,6 +635,10 @@ class Playlist:
                     del self.videos[identifier]
                     self.p_state.total_videos = self.total
                     self.p_state.total_duration = self.total_duration
+
+                    # Sauvegarde automatique
+                    self._auto_save_if_needed()
+
                     return True
                 return False
 
@@ -539,11 +663,15 @@ class Playlist:
                                 self._shuffle_position = -1
 
                     del self.videos[i]
+
+                    # Sauvegarde automatique
+                    self._auto_save_if_needed()
+
                     return True
             return False
 
         except Exception as e:
-            print(f"Erreur remove_video: {e}")
+            logger.error(f"Erreur remove_video: {e}")
             return False
 
     def move_video(self, from_index: int, to_index: int) -> bool:
@@ -593,10 +721,13 @@ class Playlist:
                             new_shuffle_order.append(idx)
                 self._shuffle_order = new_shuffle_order
 
+            # Sauvegarde automatique
+            self._auto_save_if_needed()
+
             return True
 
         except Exception as e:
-            print(f"Erreur move_video {from_index}->{to_index}: {e}")
+            logger.error(f"Erreur move_video {from_index}->{to_index}: {e}")
             return False
 
     def swap_videos(self, idx1: int, idx2: int) -> bool:
@@ -637,10 +768,13 @@ class Playlist:
                         new_shuffle_order.append(idx)
                 self._shuffle_order = new_shuffle_order
 
+            # Sauvegarde automatique
+            self._auto_save_if_needed()
+
             return True
 
         except Exception as e:
-            print(f"Erreur swap_videos {idx1}<->{idx2}: {e}")
+            logger.error(f"Erreur swap_videos {idx1}<->{idx2}: {e}")
             return False
 
     def update_playlist_state(self) -> None:
@@ -656,6 +790,276 @@ class Playlist:
             self.p_state.current_video_path = self.videos[self.current_index].file_path
         else:
             self.p_state.current_video_path = None
+
+    def set_metadata(self, name: Optional[str] = None, description: Optional[str] = None) -> None:
+        """
+        Met à jour les métadonnées de la playlist.
+
+        Args:
+            name: Nouveau nom (None pour ne pas changer)
+            description: Nouvelle description (None pour ne pas changer)
+        """
+        if name is not None:
+            self.name = name
+        if description is not None:
+            self.description = description
+
+        # Sauvegarde automatique
+        self._auto_save_if_needed()
+
+        logger.info(f"Métadonnées mises à jour: name={self.name}, description={self.description}")
+
+    # ============================================
+    # PROPRIÉTÉS ET MÉTHODES D'ACCÈS AUX VIDÉOS
+    # ============================================
+
+    def get_video_by_id(self, identifier: Union[int, str, Video, Path]) -> Optional[Video]:
+        """
+        Recherche une vidéo par différents types d'identifiants.
+
+        Args:
+            identifier: Peut être:
+                - int: index de la vidéo (0-based)
+                - str: nom de la vidéo (recherche partielle)
+                - Video: objet Video lui-même
+                - Path: chemin du fichier vidéo
+
+        Returns:
+            Objet Video trouvé ou None si non trouvé
+        """
+        if not self.videos:
+            return None
+
+        # 1. Si c'est déjà un objet Video
+        if isinstance(identifier, Video):
+            # Vérifier si cette vidéo est dans la playlist
+            return identifier if identifier in self.videos else None
+
+        # 2. Si c'est un index numérique
+        if isinstance(identifier, int):
+            if 0 <= identifier < len(self.videos):
+                return self.videos[identifier]
+            return None
+
+        # 3. Si c'est un chemin Path
+        if isinstance(identifier, Path):
+            # Recherche par chemin exact
+            for video in self.videos:
+                if video.file_path and video.file_path.absolute() == identifier.absolute():
+                    return video
+
+            # Recherche par nom de fichier
+            identifier_name = identifier.name
+            for video in self.videos:
+                if video.file_path and video.file_path.name == identifier_name:
+                    return video
+            return None
+
+        # 4. Si c'est une chaîne de caractères
+        if isinstance(identifier, str):
+            # Recherche par nom exact
+            for video in self.videos:
+                if video.name == identifier:
+                    return video
+
+            # Recherche par nom partiel (insensible à la casse)
+            identifier_lower = identifier.lower()
+            for video in self.videos:
+                if identifier_lower in video.name.lower():
+                    return video
+
+            # Recherche par chemin partiel
+            for video in self.videos:
+                if video.file_path and identifier_lower in str(video.file_path).lower():
+                    return video
+
+            return None
+
+        # Type non supporté
+        logger.warning(f"Type d'identifiant non supporté: {type(identifier)}")
+        return None
+
+    def get_video_index(self, identifier: Union[int, str, Video, Path]) -> int:
+        """
+        Retourne l'index d'une vidéo par différents types d'identifiants.
+
+        Args:
+            identifier: Peut être:
+                - int: index de la vidéo (0-based)
+                - str: nom de la vidéo (recherche partielle)
+                - Video: objet Video lui-même
+                - Path: chemin du fichier vidéo
+
+        Returns:
+            Index de la vidéo ou -1 si non trouvée
+        """
+        if not self.videos:
+            return -1
+
+        # 1. Si c'est déjà un index numérique
+        if isinstance(identifier, int):
+            return identifier if 0 <= identifier < len(self.videos) else -1
+
+        # 2. Si c'est un objet Video
+        if isinstance(identifier, Video):
+            try:
+                return self.videos.index(identifier)
+            except ValueError:
+                return -1
+
+        # 3. Si c'est un chemin Path ou une chaîne
+        video = self.get_video_by_id(identifier)
+        if video:
+            try:
+                return self.videos.index(video)
+            except ValueError:
+                return -1
+
+        return -1
+
+    def find_videos_by_name(self, name: str, case_sensitive: bool = False) -> List[Video]:
+        """
+        Recherche des vidéos par nom (recherche partielle).
+
+        Args:
+            name: Nom ou partie du nom à rechercher
+            case_sensitive: Si True, recherche sensible à la casse
+
+        Returns:
+            Liste des vidéos correspondantes
+        """
+        if not self.videos:
+            return []
+
+        results = []
+        search_name = name if case_sensitive else name.lower()
+
+        for video in self.videos:
+            video_name = video.name if case_sensitive else video.name.lower()
+            if search_name in video_name:
+                results.append(video)
+
+        return results
+
+    def find_videos_by_path(self, path_pattern: str) -> List[Video]:
+        """
+        Recherche des vidéos par motif de chemin.
+
+        Args:
+            path_pattern: Motif à rechercher dans le chemin
+
+        Returns:
+            Liste des vidéos correspondantes
+        """
+        if not self.videos:
+            return []
+
+        results = []
+        pattern_lower = path_pattern.lower()
+
+        for video in self.videos:
+            if video.file_path and pattern_lower in str(video.file_path).lower():
+                results.append(video)
+
+        return results
+
+    def get_video_info(self, identifier: Union[int, str, Video, Path]) -> Optional[Dict[str, Any]]:
+        """
+        Retourne des informations détaillées sur une vidéo spécifique.
+
+        Args:
+            identifier: Identifiant de la vidéo (index, nom, Video ou Path)
+
+        Returns:
+            Dictionnaire avec les informations de la vidéo ou None
+        """
+        video = self.get_video_by_id(identifier)
+        if not video:
+            return None
+
+        # Calculer la position dans la playlist
+        try:
+            index = self.videos.index(video)
+        except ValueError:
+            index = -1
+
+        return {
+            'index': index,
+            'name': video.name,
+            'path': str(video.file_path) if video.file_path else None,
+            'size': video.size if hasattr(video, 'size') else 0,
+            'size_mb': video.size / (1024 * 1024) if hasattr(video, 'size') and video.size > 0 else 0,
+            'duration': video.duration,
+            'duration_formatted': f"{video.duration // 60000}:{(video.duration % 60000) // 1000:02d}" if video.duration > 0 else "0:00",
+            'width': video.width,
+            'height': video.height,
+            'resolution': f"{video.width}x{video.height}" if video.width > 0 and video.height > 0 else "Inconnue",
+            'aspect_ratio': video.aspect_ratio if hasattr(video, 'aspect_ratio') else 0.0,
+            'extension': video.extension if hasattr(video, 'extension') else '',
+            'is_current': index == self.current_index,
+            'state': video.state.to_dict() if hasattr(video, 'state') else {},
+            'file_exists': video.file_path.exists() if video.file_path else False
+        }
+
+    # ============================================
+    # MÉTHODES DE NETTOYAGE
+    # ============================================
+
+    def clear(self, reset_state: bool = True) -> None:
+        """
+        Vide complètement la playlist.
+
+        Args:
+            reset_state: Si True, réinitialise aussi l'état de lecture
+                         Si False, conserve l'état actuel (index, mode, etc.)
+        """
+        # Sauvegarder certaines informations si reset_state est False
+        if not reset_state:
+            current_mode = self.play_mode
+            was_playing = self.p_state.is_playing if hasattr(self, 'p_state') else False
+        else:
+            current_mode = None
+            was_playing = False
+
+        # Vider la liste des vidéos
+        self.videos.clear()
+
+        # Réinitialiser les index
+        self._current_index = -1
+
+        # Réinitialiser l'état shuffle si présent
+        if hasattr(self, '_shuffle_order'):
+            self._shuffle_order.clear()
+            self._shuffle_history.clear()
+            self._shuffle_position = -1
+
+        # Mettre à jour l'état
+        if reset_state:
+            self.p_state.reset_playback()
+        else:
+            # Conserver le mode mais réinitialiser l'index
+            self.p_state.update_state(index=-1, video_path=None, playing=was_playing)
+
+        # Restaurer le mode si on ne reset pas complètement
+        if not reset_state and current_mode:
+            self.play_mode = current_mode
+
+        # Mettre à jour les métadonnées
+        self.p_state.total_videos = 0
+        self.p_state.total_duration = 0
+
+        # Sauvegarde automatique
+        self._auto_save_if_needed()
+
+        logger.info(f"Playlist vidée: {self.name}")
+
+    def clear_and_reset(self) -> None:
+        """Vide la playlist et réinitialise complètement son état."""
+        self.clear(reset_state=True)
+
+    def clear_videos_only(self) -> None:
+        """Vide seulement les vidéos, conserve l'état de lecture."""
+        self.clear(reset_state=False)
 
     # ============================================
     # MÉTHODES PRIVÉES DE NAVIGATION
@@ -835,7 +1239,7 @@ class Playlist:
                 if file_path.is_file():
                     self.add_video(file_path)
         except Exception as e:
-            print(f"Erreur _load_videos_from_folder: {e}")
+            logger.error(f"Erreur _load_videos_from_folder: {e}")
 
     # ============================================
     # MÉTHODES UTILITAIRES
@@ -844,6 +1248,16 @@ class Playlist:
     def __str__(self) -> str:
         """Représentation textuelle de la playlist."""
         return f"Playlist '{self.name}' ({self.total} vidéos, mode: {self.play_mode})"
+
+    def __len__(self) -> int:
+        """
+        Retourne le nombre de vidéos dans la playlist.
+        Permet d'utiliser len(playlist) comme len(list).
+
+        Returns:
+            Nombre total de vidéos
+        """
+        return len(self.videos)
 
     # ============================================
     # MÉTHODES DE SÉRIALISATION
@@ -883,6 +1297,7 @@ class Playlist:
                 valid_video_count += 1
             else:
                 missing_video_count += 1
+                logger.warning(f"Fichier manquant: {video.file_path}")
 
         # Sérialiser l'état shuffle si présent
         shuffle_state = None
@@ -907,6 +1322,7 @@ class Playlist:
             # Informations de base
             'path': str(self.path) if self.path else None,
             'name': self.name,
+            'description': self.description,
             'unique_id': self.unique_id,
 
             # Configuration
@@ -945,6 +1361,11 @@ class Playlist:
             if not isinstance(data, dict):
                 raise ValueError("Les données doivent être un dictionnaire")
 
+            # Vérifier la version (pour compatibilité future)
+            version = data.get('version', '1.0')
+            if version not in ['1.0']:
+                logger.warning(f"Version {version} non supportée, tentative de chargement")
+
             # Créer une playlist vide
             path_data = data.get('path')
             path = Path(path_data) if path_data else None
@@ -953,14 +1374,12 @@ class Playlist:
             # Restaurer les propriétés de base
             playlist.path = path
             playlist.name = data.get('name', 'Playlist restaurée')
+            playlist.description = data.get('description', None)
             playlist.unique_id = data.get('unique_id', playlist._generate_id())
 
             # Restaurer le mode de lecture
             play_mode_str = data.get('play_mode', 'normal')
-            try:
-                playlist.play_mode = PlayMode.from_dict(play_mode_str)
-            except ValueError:
-                playlist.play_mode = PlayMode.NORMAL
+            playlist.play_mode = PlayMode.from_dict(play_mode_str)
 
             # Restaurer les vidéos avec validation
             playlist.videos.clear()
@@ -979,6 +1398,7 @@ class Playlist:
                                 'path': str(video.file_path),
                                 'name': video.name
                             })
+                            logger.warning(f"Fichier manquant à l'index {i}: {video.file_path}")
                         else:
                             # Vérifier que c'est bien un fichier et pas un dossier
                             if video.file_path.is_dir():
@@ -987,6 +1407,7 @@ class Playlist:
                                     'path': str(video.file_path),
                                     'reason': "Est un dossier, pas un fichier"
                                 })
+                                logger.warning(f"Chemin est un dossier: {video.file_path}")
 
                     playlist.videos.append(video)
 
@@ -996,6 +1417,7 @@ class Playlist:
                         'path': video_data.get('file_path', 'inconnu'),
                         'reason': str(e)
                     })
+                    logger.error(f"Erreur chargement vidéo {i}: {e}")
 
             # Restaurer l'état interne
             playlist._current_index = data.get('current_index', -1)
@@ -1026,29 +1448,49 @@ class Playlist:
                 if 0 <= playlist.current_index < len(playlist.videos):
                     current_video = playlist.videos[playlist.current_index]
                     if not current_video.file_path.exists():
+                        logger.warning(f"Vidéo courante manquante, réinitialisation index")
                         playlist.current_index = -1
                         playlist.p_state.update_state(index=-1, video_path=None)
 
             # Mettre à jour les métadonnées
             playlist.update_playlist_state()
 
+            # Log des résultats
+            if missing_files:
+                logger.info(f"Playlist chargée avec {len(missing_files)} fichiers manquants")
+            if corrupted_files:
+                logger.info(f"Playlist chargée avec {len(corrupted_files)} fichiers corrompus")
+
             return playlist
 
         except Exception as e:
+            logger.error(f"Erreur lors du chargement de la playlist: {e}")
             raise ValueError(f"Impossible de charger la playlist: {e}")
 
-    def save_to_file(self, file_path: Path, create_backup: bool = True) -> bool:
+    def save_to_file(self, file_path: Path, create_backup: bool = True,
+                     name: Optional[str] = None, description: Optional[str] = None) -> bool:
         """
         Sauvegarde la playlist dans un fichier JSON avec backup optionnel.
 
         Args:
             file_path: Chemin du fichier de sauvegarde
             create_backup: Créer un backup du fichier existant
+            name: Nom personnalisé pour la sauvegarde (None = utiliser self.name)
+            description: Description optionnelle (None = utiliser self.description)
 
         Returns:
             True si réussite, False sinon
         """
         try:
+            # Mettre à jour le nom et la description si spécifiés
+            original_name = self.name
+            original_description = self.description
+
+            if name is not None:
+                self.name = name
+            if description is not None:
+                self.description = description
+
             # Créer le dossier parent si nécessaire
             file_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1058,8 +1500,9 @@ class Playlist:
                 try:
                     import shutil
                     shutil.copy2(file_path, backup_path)
+                    logger.info(f"Backup créé: {backup_path}")
                 except Exception as e:
-                    return
+                    logger.warning(f"Impossible de créer le backup: {e}")
 
             # Sérialiser et sauvegarder
             data = self.to_dict()
@@ -1067,24 +1510,60 @@ class Playlist:
             with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
 
+            logger.info(f"Playlist sauvegardée: {file_path} ({len(self.videos)} vidéos)")
+
+            # Restaurer les valeurs originales si elles ont été temporairement modifiées
+            if name is not None:
+                self.name = original_name
+            if description is not None:
+                self.description = original_description
+
             return True
 
         except IOError as e:
+            logger.error(f"Erreur d'E/S lors de la sauvegarde: {e}")
+
+            # Restaurer les valeurs originales en cas d'erreur
+            if name is not None:
+                self.name = original_name
+            if description is not None:
+                self.description = original_description
+
             return False
+
         except json.JSONDecodeError as e:
+            logger.error(f"Erreur de format JSON: {e}")
+
+            # Restaurer les valeurs originales en cas d'erreur
+            if name is not None:
+                self.name = original_name
+            if description is not None:
+                self.description = original_description
+
             return False
+
         except Exception as e:
+            logger.exception(f"Erreur inattendue lors de la sauvegarde: {e}")
+
+            # Restaurer les valeurs originales en cas d'erreur
+            if name is not None:
+                self.name = original_name
+            if description is not None:
+                self.description = original_description
 
             return False
 
     @classmethod
-    def load_from_file(cls, file_path: Path, validate_files: bool = True) -> Optional['Playlist']:
+    def load_from_file(cls, file_path: Path, validate_files: bool = True,
+                       name: Optional[str] = None, description: Optional[str] = None) -> Optional['Playlist']:
         """
         Charge une playlist depuis un fichier JSON avec gestion d'erreurs.
 
         Args:
             file_path: Chemin du fichier de sauvegarde
             validate_files: Vérifier l'existence des fichiers
+            name: Nom personnalisé à appliquer après chargement
+            description: Description personnalisée à appliquer après chargement
 
         Returns:
             Playlist restaurée ou None en cas d'erreur
@@ -1093,6 +1572,7 @@ class Playlist:
             Cette méthode ne lève pas d'exception, elle retourne None et log l'erreur
         """
         if not file_path.exists():
+            logger.error(f"Fichier introuvable: {file_path}")
             return None
 
         try:
@@ -1101,21 +1581,31 @@ class Playlist:
 
             playlist = cls.from_dict(data, validate_files=validate_files)
 
+            # Appliquer le nom et la description personnalisés si spécifiés
+            if name is not None:
+                playlist.name = name
+            if description is not None:
+                playlist.description = description
+
             # Ajouter le chemin du fichier source
             playlist._source_file = file_path
 
+            logger.info(f"Playlist chargée: {file_path} ({playlist.total} vidéos)")
             return playlist
 
         except json.JSONDecodeError as e:
+            logger.error(f"Fichier JSON corrompu: {file_path} - {e}")
 
             # Essayer de charger depuis le backup le plus récent
-            return cls._try_load_from_backup(file_path, validate_files)
+            return cls._try_load_from_backup(file_path, validate_files, name, description)
 
         except Exception as e:
+            logger.error(f"Erreur lors du chargement de {file_path}: {e}")
             return None
 
     @classmethod
-    def _try_load_from_backup(cls, original_path: Path, validate_files: bool = True) -> Optional['Playlist']:
+    def _try_load_from_backup(cls, original_path: Path, validate_files: bool = True,
+                              name: Optional[str] = None, description: Optional[str] = None) -> Optional['Playlist']:
         """Tente de charger depuis un backup."""
         try:
             # Chercher les backups
@@ -1136,6 +1626,13 @@ class Playlist:
                 data = json.load(f)
 
             playlist = cls.from_dict(data, validate_files=validate_files)
+
+            # Appliquer le nom et la description personnalisés si spécifiés
+            if name is not None:
+                playlist.name = name
+            if description is not None:
+                playlist.description = description
+
             playlist._source_file = original_path  # Garder le chemin original
             playlist._loaded_from_backup = True
 
@@ -1180,7 +1677,9 @@ class Playlist:
             'total_videos': len(self.videos),
             'valid_count': len(valid_files),
             'missing_count': len(missing_files),
-            'check_time': datetime.now().isoformat()
+            'check_time': datetime.now().isoformat(),
+            'name': self.name,
+            'description': self.description
         }
 
     def remove_missing_files(self) -> List[Dict[str, Any]]:
@@ -1233,6 +1732,7 @@ class Playlist:
                 # Même nom dans le dossier de la playlist
                 self.path / original_path.name if self.path else None,
 
+
                 # Dans le dossier parent de la playlist
                 self.path.parent / original_path.name if self.path and self.path.parent else None,
 
@@ -1257,3 +1757,5 @@ class Playlist:
                     break
 
         return found_files
+
+    pass

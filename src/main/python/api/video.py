@@ -1,8 +1,5 @@
-import json
 from pathlib import Path
 from typing import Optional, Dict, Any
-import src.main.python.ui.widget.constant as constant
-
 
 class Video:
     """Représente un fichier vidéo avec ses métadonnées essentielles."""
@@ -62,7 +59,7 @@ class Video:
             self.state.duration = duration  # Met à jour aussi l'état
 
     def update_state(self, playing: Optional[bool] = None, position: Optional[int] = None,
-                    volume: Optional[float] = None, muted: Optional[bool] = None) -> None:
+                    volume: Optional[float] = None, muted: Optional[bool] = None) -> bool:
         """
         Met à jour l'état de lecture de la vidéo.
 
@@ -76,7 +73,7 @@ class Video:
         return True
 
 
-    def reset_state(self) -> None:
+    def reset_state(self) -> bool:
         """Réinitialise l'état de lecture à zéro."""
         self.state.reset_state()
         # Conserve la durée de la vidéo
@@ -138,7 +135,6 @@ class Video:
     def __repr__(self) -> str:
         """Représentation pour le débogage."""
         return f"Video('{self.name}', {self.resolution})"
-
 
 class VideoState:
     """État de lecture d'une vidéo à un instant T."""
