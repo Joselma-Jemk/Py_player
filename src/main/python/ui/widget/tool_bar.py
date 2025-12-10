@@ -211,7 +211,7 @@ class PlayerControlsWidget(QtWidgets.QWidget):
         self.btn_stop = QtWidgets.QPushButton("\ue047")
         self.btn_skipnext = QtWidgets.QPushButton("\ue044")
         self.btn_skipprevious = QtWidgets.QPushButton("\ue045")
-        self.btn_play_mode = QtWidgets.QPushButton("\ue040")
+        self.btn_play_mode = QtWidgets.QPushButton()
         self.btn_list = [self.btn_play_pause, self.btn_skipprevious, self.btn_stop, self.btn_skipnext,
                          self.btn_play_mode]
 
@@ -268,6 +268,7 @@ class PlayerControlsWidget(QtWidgets.QWidget):
         self.btn_skipnext.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Lire le suivant</b>")
         self.btn_skipprevious.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Lire le précédent</b>")
         self.play_mode_tooltip()
+        self.btn_play_mode_init()
 
     def create_layouts(self):
         self.lyt = QtWidgets.QHBoxLayout(self)
@@ -277,6 +278,10 @@ class PlayerControlsWidget(QtWidgets.QWidget):
     @property
     def play_mode(self):
         return self._play_mode
+
+    @play_mode.setter
+    def play_mode(self, value):
+        self._play_mode = value
 
     def btn_play_pause_update(self, player_state=None):
         """
@@ -307,38 +312,49 @@ class PlayerControlsWidget(QtWidgets.QWidget):
                 self.btn_play_pause.setText("\ue037")  # Icône play
                 self.btn_play_pause.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Lire</b>")
 
-    def player_mode_update(self):
-        if self.btn_play_mode.text() == "\ue043":
-            self.btn_play_mode.setText("\ue040")
-        elif self.btn_play_mode.text() == "\ue040":
-            self.btn_play_mode.setText("\ue041")
-        elif self.btn_play_mode.text() == "\ue041":
+    def btn_play_mode_init(self):
+        if self.play_mode == PlayMode.NORMAL:
             self.btn_play_mode.setText("\ue14b")
+        elif self.play_mode == PlayMode.LOOP_ONE:
+            self.btn_play_mode.setText("\ue041")
+        elif self.play_mode == PlayMode.LOOP_ALL:
+            self.btn_play_mode.setText("\ue040")
         else:
             self.btn_play_mode.setText("\ue043")
+        self.play_mode_tooltip()
+
+    def player_mode_update(self):
+        if self.play_mode == PlayMode.NORMAL:
+            self.btn_play_mode.setText("\ue041")
+        elif self.play_mode == PlayMode.LOOP_ONE:
+            self.btn_play_mode.setText("\ue040")
+        elif self.play_mode == PlayMode.LOOP_ALL:
+            self.btn_play_mode.setText("\ue043")
+        else:
+            self.btn_play_mode.setText("\ue14b")
         self.play_mode_tooltip()
 
     def play_mode_tooltip(self):
         if self.btn_play_mode.text() == "\ue040":
             self.btn_play_mode.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Lecture de la playlist</b>"
             )
-            self._play_mode = PlayMode.LOOP_ALL
+            self.play_mode = PlayMode.LOOP_ALL
 
         elif self.btn_play_mode.text() == "\ue041":
             self.btn_play_mode.setToolTip(
                 "<b style='color:#f2f2f7;font-weight:bold;'>Lecture en boucle du fichier actuelle</b>"
             )
-            self._play_mode = PlayMode.LOOP_ONE
+            self.play_mode = PlayMode.LOOP_ONE
         elif self.btn_play_mode.text() == "\ue14b":
             self.btn_play_mode.setToolTip(
                 "<b style='color:#f2f2f7;font-weight:bold;'>Lire une seul fois le fichier actuelle</b>"
             )
-            self._play_mode = PlayMode.NORMAL
+            self.play_mode = PlayMode.NORMAL
         else:
             self.btn_play_mode.setToolTip(
                 "<b style='color:#f2f2f7;font-weight:bold;'>Lecture aléatoire de la playlist en boucle</b>"
             )
-            self._play_mode = PlayMode.SHUFFLE
+            self.play_mode = PlayMode.SHUFFLE
         pass
 
 class TimeLabelWidget(QtWidgets.QLabel):

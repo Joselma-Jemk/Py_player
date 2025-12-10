@@ -346,6 +346,12 @@ class DockWidget(QtWidgets.QDockWidget):
             return [item.text() for item in selected_items]
         return []
 
+    def set_active_current_video(self,video: Video):
+        items = self.lstw.findItems(f"--- {video.name}", QtCore.Qt.MatchFlag.MatchEndsWith)
+        if items:
+            self.lstw.setCurrentItem(items[0])
+        pass
+
     def extract_video_name_from_listitem(self, text: str) -> str:
         """
         Extrait le nom de la vidéo d'un item de liste, quel que soit le format.

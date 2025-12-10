@@ -91,12 +91,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.toolbar_widget.player_controls.btn_play_mode.clicked.connect(self.playlist_play_mode_update)
         self.toolbar_widget.player_controls.btn_play_pause.clicked.connect(self.play_or_pause)
         self.toolbar_widget.player_controls.btn_play_pause.clicked.connect(self.btn_play_pause_update)
+        self.toolbar_widget.player_controls.btn_stop.clicked.connect(self.stop_playing)
+        self.toolbar_widget.player_controls.btn_skipnext.clicked.connect(self.next_video)
+        self.toolbar_widget.player_controls.btn_skipprevious.clicked.connect(self.previous_video)
 
 
         #Player
         self.player_widget.signal_double_click.connect(self.play_or_pause)
         self.player_widget.signal_double_click.connect(self.btn_play_pause_update)
         self.player_widget.video_player.mediaStatusChanged.connect(self.btn_play_pause_update)
+        self.player_widget.video_player.mediaStatusChanged.connect(self.playlist_play_mode_update)
         self.player_widget.video_player.mediaStatusChanged.connect(self.current_video_update_metadata)
         self.player_widget.video_player.playbackStateChanged.connect(self.on_playback_state_changed)
         self.player_widget.video_player.positionChanged.connect(self.save_video_on_position_changed)
@@ -116,6 +120,10 @@ class MainWindow(QtWidgets.QMainWindow):
             return playlist.current_video
         playlist.auto_save()
         return None
+
+    # ============================================
+    # MÉTHODES DE GESTION DES PLAYLISTS
+    # ============================================
 
     def choose_file(self):
         """Ouvre une boîte de dialogue pour sélectionner un fichier vidéo"""
@@ -755,6 +763,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.dock_widget.add_playlist_state(item)
             self.dock_widget.set_active_playlist(self.manager.active_playlist)
             self.initialize_playlist()
+            self.btn_play_mode_initialize()
         pass
 
     def initialize_playlist(self):
@@ -899,9 +908,16 @@ class MainWindow(QtWidgets.QMainWindow):
     def playlist_play_mode_update(self):
         self.active_playlist.set_play_mode(self.toolbar_widget.player_controls.play_mode)
 
+    def btn_play_mode_initialize(self):
+        self.toolbar_widget.player_controls.play_mode = self.active_playlist.play_mode
+        self.toolbar_widget.player_controls.btn_play_mode_init()
+        pass
+
     def play_or_pause(self):
         """Joue ou met en pause la vidéo en fonction de l'état du lecteur"""
         player = self.player_widget.video_player
+        print(self.toolbar_widget.player_controls.play_mode == self.active_playlist.play_mode)
+        print(self.toolbar_widget.player_controls.play_mode)
 
         # Si déjà en lecture, mettre en pause
         if player.playbackState() == QtMultimedia.QMediaPlayer.PlaybackState.PlayingState:
@@ -936,10 +952,29 @@ class MainWindow(QtWidgets.QMainWindow):
             return
 
         # Enfin, charger et jouer
+        self.play_video()
+        pass
+
+    def stop_playing(self):
+        player = self.player_widget.video_player
+        player.stop()
+        pass
+
+    def next_video(self):
+        self.active_playlist.get_next_video()
+        self.play_video()
+
+    def previous_video(self):
+        self.active_playlist.get_previous_video()
+        self.play_video()
+
+    def play_video(self):
+        player = self.player_widget.video_player
         video_url = QtCore.QUrl.fromLocalFile(str(self.current_video.file_path))
         player.setSource(video_url)
+        if 1000 < self.current_video.state.position < self.current_video.state.duration:
+            self.player_widget.video_player.setPosition(self.current_video.state.position)
         player.play()
-        pass
 
     def btn_play_pause_update(self, status=None):
         """
