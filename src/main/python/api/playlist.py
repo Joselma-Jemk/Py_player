@@ -363,6 +363,39 @@ class Playlist:
     # ============================================
     # MÉTHODES DE SAUVEGARDE AUTOMATIQUE
     # ============================================
+    def update_current_video_state(self, position: Optional[int] = None,
+                                   duration: Optional[int] = None,
+                                   playing: Optional[bool] = None,
+                                   volume: Optional[float] = None,
+                                   muted: Optional[bool] = None) -> bool:
+        """
+        Met à jour l'état de la vidéo courante dans la playlist.
+        À appeler depuis l'UI/Player quand l'état change.
+
+        Returns:
+            True si mis à jour, False si pas de vidéo courante
+        """
+        current_video = self.current_video
+        if not current_video:
+            return False
+
+        # Met à jour l'état de la vidéo
+        current_video.update_state(
+            playing=playing,
+            position=position,
+            duration= duration,
+            volume=volume,
+            muted=muted
+        )
+
+        # Met à jour l'état de la playlist
+        if playing is not None:
+            self.p_state.is_playing = playing
+
+        # Sauvegarde automatique
+        self._auto_save_if_needed()
+
+        return True
 
     def _auto_save_if_needed(self) -> None:
         """
@@ -376,6 +409,10 @@ class Playlist:
             except Exception as e:
                 # On ne veut pas que les erreurs de sauvegarde bloquent l'application
                 logger.debug(f"Auto-save échoué: {e}")
+
+    def auto_save(self):
+        self._auto_save_if_needed()
+        pass
 
     def set_auto_save(self, file_path: Optional[Path]) -> None:
         """

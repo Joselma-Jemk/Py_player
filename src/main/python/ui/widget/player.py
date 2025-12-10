@@ -3,6 +3,91 @@ from pathlib import Path
 import src.main.python.ui.widget.constant as constant
 
 
+class CustomSlider(QtWidgets.QSlider):
+    """Slider personnalisé avec click direct sur la position"""
+
+    # Signal personnalisé pour la position cliquée
+    sliderClicked = QtCore.Signal(int)
+
+    def __init__(self, orientation=QtCore.Qt.Orientation.Horizontal, parent=None):
+        super().__init__(orientation, parent)
+        self.setup_ui()
+
+    def setup_ui(self):
+        """Configure l'apparence du slider"""
+        self.setStyleSheet("""
+            QSlider::groove:horizontal {
+                background: #e0e0e0;
+                height: 4px;
+                border-radius: 2px;
+                margin: 2px 0;
+            }
+
+            QSlider::handle:horizontal {
+                background: #f0f00f;
+                width: 14px;
+                height: 14px;
+                border-radius: 7px;
+                margin: -5px 0;
+            }
+
+            QSlider::handle:horizontal:hover {
+                background: #ffff00;
+                width: 16px;
+                height: 16px;
+                border-radius: 8px;
+                margin: -6px 0;
+            }
+
+            QSlider::sub-page:horizontal {
+                background: #2196F3;
+                margin: 2px 0;
+                border-radius: 2px;
+            }
+
+            QSlider::add-page:horizontal {
+                background: #e0e0e0;
+                margin: 2px 0;
+                border-radius: 2px;
+            }
+        """)
+
+    def mousePressEvent(self, event: QtGui.QMouseEvent):
+        """Gère le clic sur le slider pour aller directement à la position"""
+        if event.button() == QtCore.Qt.MouseButton.LeftButton:
+            # Obtenir la position relative du clic dans le slider
+            pos = event.position().x()
+
+            # Calculer la valeur correspondante
+            if self.width() > 0:
+                value = (self.maximum() - self.minimum()) * pos / self.width() + self.minimum()
+                value = max(self.minimum(), min(self.maximum(), int(value)))
+
+                # Émettre le signal avec la valeur calculée
+                self.sliderClicked.emit(int(value))
+
+                # Mettre à jour la position du slider
+                self.setValue(int(value))
+
+                # Émettre le signal de changement de valeur
+                self.valueChanged.emit(int(value))
+
+        # Appeler la méthode parente pour garder le comportement normal
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QtGui.QMouseEvent):
+        """Gère le déplacement avec clic maintenu"""
+        if event.buttons() & QtCore.Qt.MouseButton.LeftButton and self.isSliderDown():
+            pos = event.position().x()
+            if self.width() > 0:
+                value = (self.maximum() - self.minimum()) * pos / self.width() + self.minimum()
+                value = max(self.minimum(), min(self.maximum(), int(value)))
+
+                self.setValue(value)
+                self.valueChanged.emit(value)
+
+        super().mouseMoveEvent(event)
+
 class PlayerWidget(QtWidgets.QWidget):
     signal_double_click = QtCore.Signal()
 
@@ -34,32 +119,12 @@ class PlayerWidget(QtWidgets.QWidget):
         self.video_player.setVideoOutput(self.video_output)
         self.video_player.setAudioOutput(self.audio_output)
 
-        self.slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
+        # Utilisation du CustomSlider au lieu de QSlider
+        self.slider = CustomSlider(QtCore.Qt.Orientation.Horizontal)
         self.placeholder_label = QtWidgets.QLabel()
 
     def configure_widgets(self):
         self.slider.setEnabled(False)
-        self.slider.setStyleSheet("""
-            QSlider::groove:horizontal {
-                background: #e0e0e0;
-                height: 4px;
-                border-radius: 2px;
-                margin: 2px 0;
-            }
-            QSlider::handle:horizontal {
-                background: #f0f00f;
-                width: 7px;
-                height: 7px;
-                border-radius: 7px;
-                margin: -2px 0;
-            }
-            QSlider::sub-page:horizontal {
-                background:qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #2196F3, stop:1 #2196F3);
-                background: #2196F3;
-                margin: 2px 0;
-                border-radius: 2px;
-            }
-        """)
 
         icon_path = constant.py_player_icone(4) if hasattr(constant, 'py_player_icone') else ""
         if icon_path and Path(icon_path).exists():
@@ -81,10 +146,11 @@ class PlayerWidget(QtWidgets.QWidget):
         self.video_player.positionChanged.connect(self._on_position_changed)
         self.video_player.mediaStatusChanged.connect(self._on_media_status_changed)
 
-        # NOUVEAU SYSTÈME SLIDER — Tout est ici
+        # Connexions simplifiées grâce au CustomSlider
         self.slider.sliderPressed.connect(self._slider_pressed)
         self.slider.sliderReleased.connect(self._slider_released)
         self.slider.valueChanged.connect(self._slider_value_changed)
+        self.slider.sliderClicked.connect(self._slider_clicked)
 
         QtGui.QShortcut(QtCore.Qt.Key.Key_Left, self, lambda: self._seek(-10000))
         QtGui.QShortcut(QtCore.Qt.Key.Key_Right, self, lambda: self._seek(10000))
@@ -102,16 +168,17 @@ class PlayerWidget(QtWidgets.QWidget):
             self.slider.blockSignals(False)
 
     def _on_media_status_changed(self, status):
-        if status == QtMultimedia.QMediaPlayer.MediaStatus.NoMedia:
+        if status == QtMultimedia.QMediaPlayer.MediaStatus.NoMedia or status == QtMultimedia.QMediaPlayer.MediaStatus.EndOfMedia:
             self._show_placeholder_mode()
             self.slider.setEnabled(False)
+            self.slider.setValue(0)
         else:
             self._show_playing_mode()
             if self.video_player.duration() > 0:
                 self.slider.setEnabled(True)
 
     # ===================================================================
-    # NOUVEAU SYSTÈME DE SEEKING — ULTRA PRÉCIS, COMME VLC
+    # GESTION SLIDER SIMPLIFIÉE
     # ===================================================================
     def _slider_pressed(self):
         self._seeking = True
@@ -126,47 +193,15 @@ class PlayerWidget(QtWidgets.QWidget):
         if self._seeking:
             self.video_player.setPosition(value)
 
+    def _slider_clicked(self, value):
+        """Appelé quand on clique n'importe où sur le slider"""
+        self.video_player.setPosition(value)
+
     def _seek(self, delta_ms):
         target = self.video_player.position() + delta_ms
         target = max(0, min(target, self.video_player.duration()))
         self.video_player.setPosition(target)
         # Le slider suivra automatiquement via _on_position_changed
-
-    # ===================================================================
-    # CLIC N'IMPORTE OÙ SUR LA BARRE → SAUT INSTANTANÉ ET PARFAIT
-    # ===================================================================
-    def mousePressEvent(self, event):
-        if event.button() == QtCore.Qt.MouseButton.LeftButton and self.slider.isEnabled():
-            # On convertit le clic global en coordonnées locales du slider
-            pos = self.slider.mapFromGlobal(event.globalPosition().toPoint())
-
-            # On récupère le rectangle EXACT du groove (méthode officielle Qt)
-            opt = QtWidgets.QStyleOptionSlider()
-            self.slider.initStyleOption(opt)
-            groove = self.slider.style().subControlRect(
-                QtWidgets.QStyle.ComplexControl.CC_Slider,
-                opt,
-                QtWidgets.QStyle.SubControl.SC_SliderGroove,
-                self.slider
-            )
-
-            # Zone de clic ultra généreuse (même si tu cliques 30px au-dessus ou en dessous)
-            clickable = groove.adjusted(-40, -30, 40, 50)
-
-            if clickable.contains(pos):
-                if groove.width() > 0:
-                    ratio = (pos.x() - groove.left()) / groove.width()
-                    ratio = max(0.0, min(1.0, ratio))
-                    new_pos = int(ratio * self.slider.maximum())
-
-                    # On force le slider + le player immédiatement
-                    self.slider.setValue(new_pos)
-                    self.video_player.setPosition(new_pos)
-
-                event.accept()
-                return
-
-        super().mousePressEvent(event)
 
     # ===================================================================
     # AFFICHAGE

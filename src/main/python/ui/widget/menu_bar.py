@@ -1,4 +1,4 @@
-from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets, QtMultimedia
 from pathlib import Path
 import src.main.python.ui.widget.constant as constant
 
@@ -21,13 +21,12 @@ class MenuBarWidget(QtWidgets.QMenuBar):
         self.icon_font_initialize()
         self.customize_self()
         self.create_menu()
-        self.apply_palette()   # <-- Palette appliquée ici
+        self.apply_palette()
         self.fileMenu_customize()
         self.playMenu_customize()
         self.playlistMenu_customize()
         self.helpMenu_customize()
         self.set_tool_tip(self.ok)
-        self.setup_connection()
 
     def icon_font_initialize(self, size=15):
         font_path = constant.find_path("material-symbols-outlined.ttf", safe=True)
@@ -221,19 +220,39 @@ class MenuBarWidget(QtWidgets.QMenuBar):
             self.helpMenu.setToolTip("Obtenir de l'aide")
         pass
 
-    def setup_connection(self):
-        self.act_play.triggered.connect(self.play_pause_update)
-        pass
+    def play_pause_update(self, player_state=None):
+        """
+        Met à jour l'action Play/Pause du menu en fonction de l'état du player.
 
-    def play_pause_update(self):
-        if self.act_play.text() == "Lire":
-            if constant.ICON_PAUSE:
-                self.act_play.setIcon(QtGui.QIcon(constant.ICON_PAUSE))
-            self.act_play.setToolTip("Pause")
-            self.act_play.setText("Pause")
+        Args:
+            player_state: État de lecture du player (PlayingState, PausedState, StoppedState)
+                         Si None, on bascule l'état actuel.
+        """
+        if player_state is None:
+            # Mode bascule: on inverse l'état actuel basé sur le texte
+            if self.act_play.text() == "Lire":
+                # Changer vers état "pause"
+                if constant.ICON_PAUSE:
+                    self.act_play.setIcon(QtGui.QIcon(constant.ICON_PAUSE))
+                self.act_play.setToolTip("Pause")
+                self.act_play.setText("Pause")
+            else:
+                # Changer vers état "play"
+                if constant.ICON_PLAY:
+                    self.act_play.setIcon(QtGui.QIcon(constant.ICON_PLAY))
+                self.act_play.setToolTip("Lire")
+                self.act_play.setText("Lire")
         else:
-            if constant.ICON_PLAY:
-                self.act_play.setIcon(QtGui.QIcon(constant.ICON_PLAY))
-            self.act_play.setToolTip("Lire")
-            self.act_play.setText("Lire")
-        pass
+            # Mode avec état explicite
+            if player_state == QtMultimedia.QMediaPlayer.PlaybackState.PlayingState:
+                # Le player est en lecture -> afficher "Pause"
+                if constant.ICON_PAUSE:
+                    self.act_play.setIcon(QtGui.QIcon(constant.ICON_PAUSE))
+                self.act_play.setToolTip("Pause")
+                self.act_play.setText("Pause")
+            else:
+                # Le player est en pause/arrêt -> afficher "Lire"
+                if constant.ICON_PLAY:
+                    self.act_play.setIcon(QtGui.QIcon(constant.ICON_PLAY))
+                self.act_play.setToolTip("Lire")
+                self.act_play.setText("Lire")

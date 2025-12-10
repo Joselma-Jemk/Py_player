@@ -1,4 +1,4 @@
-from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets, QtMultimedia
 import src.main.python.ui.widget.constant as constant
 from pathlib import Path
 
@@ -278,13 +278,34 @@ class PlayerControlsWidget(QtWidgets.QWidget):
     def play_mode(self):
         return self._play_mode
 
-    def btn_play_pause_update(self):
-        if self.btn_play_pause.text() == "\ue037":
-            self.btn_play_pause.setText("\ue034")
-            self.btn_play_pause.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Pause</b>")
+    def btn_play_pause_update(self, player_state=None):
+        """
+        Met à jour le bouton Play/Pause de la toolbar en fonction de l'état du player.
+
+        Args:
+            player_state: État de lecture du player (PlayingState, PausedState, StoppedState)
+                         Si None, on bascule l'état actuel.
+        """
+        if player_state is None:
+            # Mode bascule: on inverse l'état actuel basé sur le texte
+            if self.btn_play_pause.text() == "\ue037":  # Icône play
+                # Changer vers état "pause"
+                self.btn_play_pause.setText("\ue034")  # Icône pause
+                self.btn_play_pause.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Pause</b>")
+            else:
+                # Changer vers état "play"
+                self.btn_play_pause.setText("\ue037")  # Icône play
+                self.btn_play_pause.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Lire</b>")
         else:
-            self.btn_play_pause.setText("\ue037")
-            self.btn_play_pause.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Lire</b>")
+            # Mode avec état explicite
+            if player_state == QtMultimedia.QMediaPlayer.PlaybackState.PlayingState:
+                # Le player est en lecture -> afficher icône pause
+                self.btn_play_pause.setText("\ue034")  # Icône pause
+                self.btn_play_pause.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Pause</b>")
+            else:
+                # Le player est en pause/arrêt -> afficher icône play
+                self.btn_play_pause.setText("\ue037")  # Icône play
+                self.btn_play_pause.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Lire</b>")
 
     def player_mode_update(self):
         if self.btn_play_mode.text() == "\ue043":
@@ -395,6 +416,7 @@ class PlaylistButtonWidget(QtWidgets.QPushButton):
         self.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Masquer le panneau des playlists</b>")
 
 class ToolBarWidget(QtWidgets.QToolBar):
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(50)
@@ -445,7 +467,6 @@ class ToolBarWidget(QtWidgets.QToolBar):
                         self.volume_widget.btn.clicked.emit)
 
         # Connect player controls
-        self.player_controls.btn_play_pause.clicked.connect(self.player_controls.btn_play_pause_update)
         self.player_controls.btn_play_mode.clicked.connect(self.player_controls.player_mode_update)
 
     def add_widgets_to_toolbar(self):

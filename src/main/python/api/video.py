@@ -1,6 +1,92 @@
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+
+class VideoState:
+    """État de lecture d'une vidéo à un instant T."""
+
+    def __init__(self):
+        self.playing = False
+        self.position = 0
+        self._duration = 0
+        self.volume = 1.0
+        self.muted = False
+
+    @property
+    def duration(self) -> int:
+        """Retourne la durée en ms."""
+        return self._duration
+
+    @duration.setter
+    def duration(self, value: int) -> None:
+        """Définit la durée en ms."""
+        self._duration = max(0, value)
+
+    @property
+    def progress(self) -> float:
+        """Progression en pourcentage (0.0 à 1.0)."""
+        if self._duration > 0:
+            return self.position / self._duration
+        return 0.0
+
+    def update_state(self, playing: Optional[bool] = None,
+                     position: Optional[int] = None,
+                     duration: Optional[int] = None,
+                     volume: Optional[float] = None,
+                     muted: Optional[bool] = None) -> None:
+        """
+        Met à jour l'état avec les nouvelles valeurs.
+        """
+        if duration is not None:
+            self.duration = duration
+
+        if playing is not None:
+            self.playing = playing
+
+        if position is not None:
+            # Limite la position à la durée si elle existe
+            max_pos = self._duration if self._duration > 0 else position
+            self.position = max(0, min(position, max_pos))
+
+        if volume is not None:
+            self.volume = max(0.0, min(1.0, volume))
+
+        if muted is not None:
+            self.muted = muted
+
+    def reset_state(self) -> None:
+        """Réinitialise l'état de lecture (sauf la durée)."""
+        self.playing = False
+        self.position = 0
+        self.volume = 1.0
+        self.muted = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convertit l'état en dictionnaire pour sérialisation."""
+        return {
+            'playing': self.playing,
+            'position': self.position,
+            'duration': self._duration,
+            'volume': self.volume,
+            'muted': self.muted
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'VideoState':
+        """Crée un VideoState à partir d'un dictionnaire."""
+        state = cls()
+        state.playing = data.get('playing', False)
+        state.position = data.get('position', 0)
+        state.duration = data.get('duration', 0)
+        state.volume = data.get('volume', 1.0)
+        state.muted = data.get('muted', False)
+        return state
+
+    def __str__(self) -> str:
+        """Représentation textuelle."""
+        status = "▶️" if self.playing else "⏸️"
+        return f"{status} {self.position}/{self._duration}ms"
+
 class Video:
     """Représente un fichier vidéo avec ses métadonnées essentielles."""
 
@@ -16,14 +102,14 @@ class Video:
         self.parent_path = file_path.parent
         self.extension = file_path.suffix.lower()
 
+        # État de lecture associé
+        self.state = VideoState()
+
         # Métadonnées de base
         self.size = self._get_file_size()
         self.width = 0
         self.height = 0
-        self.duration = 0
-
-        # État de lecture associé
-        self.state = VideoState()
+        # La durée vient du state
 
     def _get_file_size(self) -> int:
         """Récupère la taille du fichier."""
@@ -38,6 +124,16 @@ class Video:
         if self.width > 0 and self.height > 0:
             return f"{self.width}x{self.height}"
         return "Inconnue"
+
+    @property
+    def duration(self) -> int:
+        """Retourne la durée depuis le state."""
+        return self.state.duration
+
+    @duration.setter
+    def duration(self, value: int) -> None:
+        """Définit la durée (met à jour le state)."""
+        self.state.duration = value
 
     @property
     def aspect_ratio(self) -> float:
@@ -56,28 +152,39 @@ class Video:
             self.height = height
         if duration > 0:
             self.duration = duration
-            self.state.duration = duration  # Met à jour aussi l'état
 
-    def update_state(self, playing: Optional[bool] = None, position: Optional[int] = None,
-                    volume: Optional[float] = None, muted: Optional[bool] = None) -> bool:
+    def update_state(self, playing: Optional[bool] = None,
+                     position: Optional[int] = None,
+                     duration: Optional[int] = None,
+                     volume: Optional[float] = None,
+                     muted: Optional[bool] = None) -> bool:
         """
         Met à jour l'état de lecture de la vidéo.
 
         Args:
             playing: Nouvel état de lecture
             position: Nouvelle position en ms
+            duration: Nouvelle durée en ms
             volume: Nouveau volume (0.0 à 1.0)
             muted: Nouvel état muet
         """
-        self.state.update_state(playing, position, volume, muted)
+        # Met à jour le state
+        self.state.update_state(
+            playing=playing,
+            position=position,
+            duration=duration,
+            volume=volume,
+            muted=muted
+        )
         return True
-
 
     def reset_state(self) -> bool:
         """Réinitialise l'état de lecture à zéro."""
+        # Sauvegarde la durée actuelle
+        current_duration = self.state.duration
         self.state.reset_state()
-        # Conserve la durée de la vidéo
-        self.state.duration = self.duration
+        # Restaure la durée
+        self.state.duration = current_duration
         return True
 
     def to_dict(self) -> Dict[str, Any]:
@@ -88,7 +195,7 @@ class Video:
             'size': self.size,
             'width': self.width,
             'height': self.height,
-            'duration': self.duration,
+            'duration': self.duration,  # Récupère depuis le state
             'extension': self.extension,
             'state': self.state.to_dict()
         }
@@ -100,12 +207,22 @@ class Video:
         video.size = data.get('size', 0)
         video.width = data.get('width', 0)
         video.height = data.get('height', 0)
-        video.duration = data.get('duration', 0)
+
+        # Récupère la durée depuis les données ou depuis le state
+        duration = data.get('duration', 0)
 
         # Restaure l'état
         if 'state' in data:
             video.state = VideoState.from_dict(data['state'])
-            video.state.duration = video.duration  # S'assure que la durée est correcte
+            # S'assure que la durée est synchronisée
+            if duration > 0:
+                video.duration = duration
+            elif video.state.duration > 0:
+                # Si le state a une durée, l'utilise
+                pass
+        elif duration > 0:
+            # Si pas de state mais une durée dans les données
+            video.duration = duration
 
         return video
 
@@ -129,73 +246,13 @@ class Video:
             f"• Résolution: {self.resolution}\n"
             f"• État: {status} ({progress_pct})\n"
             f"• Position: {position_str} / {duration_str}\n"
-            f"• Volume: {vol_icon} {volume_str}"
+            f"• Volume: {vol_icon} {volume_str} \n"
+            
+            f"• Durée: {self.duration} \n"
+            f"• Width: {self.width}\n"
+            f"• Height: {self.height}\n"
         )
 
     def __repr__(self) -> str:
         """Représentation pour le débogage."""
-        return f"Video('{self.name}', {self.resolution})"
-
-class VideoState:
-    """État de lecture d'une vidéo à un instant T."""
-
-    def __init__(self):
-        self.playing = False
-        self.position = 0
-        self.duration = 0
-        self.volume = 1.0
-        self.muted = False
-
-    @property
-    def progress(self) -> float:
-        """Progression en pourcentage (0.0 à 1.0)."""
-        if self.duration > 0:
-            return self.position / self.duration
-        return 0.0
-
-    def update_state(self, playing: Optional[bool] = None, position: Optional[int] = None,
-                    volume: Optional[float] = None, muted: Optional[bool] = None) -> None:
-        """
-        Met à jour l'état avec les nouvelles valeurs.
-        """
-        if playing is not None:
-            self.playing = playing
-        if position is not None:
-            self.position = max(0, min(position, self.duration))
-        if volume is not None:
-            self.volume = max(0.0, min(1.0, volume))
-        if muted is not None:
-            self.muted = muted
-
-    def reset_state(self) -> None:
-        """Réinitialise l'état de lecture (sauf la durée)."""
-        self.playing = False
-        self.position = 0
-        self.volume = 1.0
-        self.muted = False
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convertit l'état en dictionnaire pour sérialisation."""
-        return {
-            'playing': self.playing,
-            'position': self.position,
-            'duration': self.duration,
-            'volume': self.volume,
-            'muted': self.muted
-        }
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'VideoState':
-        """Crée un VideoState à partir d'un dictionnaire."""
-        state = cls()
-        state.playing = data.get('playing', False)
-        state.position = data.get('position', 0)
-        state.duration = data.get('duration', 0)
-        state.volume = data.get('volume', 1.0)
-        state.muted = data.get('muted', False)
-        return state
-
-    def __str__(self) -> str:
-        """Représentation textuelle."""
-        status = "▶️" if self.playing else "⏸️"
-        return f"{status} {self.position}/{self.duration}ms"
+        return f"Video('{self.name}', {self.resolution}, {self.duration}ms)"
