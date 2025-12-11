@@ -1025,6 +1025,60 @@ class Playlist:
 
         return -1
 
+    def get_index_by_name(self, video_name: str, exact_match: bool = True) -> int:
+        """
+        Recherche l'index d'une vidéo par son nom.
+
+        Args:
+            video_name: Nom de la vidéo à rechercher.
+            exact_match: Si True, recherche le nom exact (sensible à la casse).
+                         Si False, recherche partielle (insensible à la casse).
+
+        Returns:
+            Index de la vidéo (0 à N-1), ou -1 si non trouvée.
+        """
+        if not self.videos:
+            return -1
+
+        for i, video in enumerate(self.videos):
+            current_name = video.name
+            if exact_match:
+                if current_name == video_name:
+                    return i
+            else:
+                if video_name.lower() in current_name.lower():
+                    return i
+        return -1
+
+    def jump_to_video_by_name(self, video_name: str, exact_match: bool = True) -> bool:
+        """
+        Définit la vidéo courante en recherchant par son nom.
+        Met à jour l'état de la playlist.
+
+        Args:
+            video_name: Nom de la vidéo à activer.
+            exact_match: Si True, recherche le nom exact.
+
+        Returns:
+            True si le saut a réussi, False sinon.
+        """
+        idx = self.get_index_by_name(video_name, exact_match)
+        if idx >= 0:
+            # Utilise le setter existant de current_index pour une mise à jour correcte
+            self.current_index = idx
+            # Pour le mode shuffle, il faut aussi ajuster la position interne
+            if self.play_mode == PlayMode.SHUFFLE and self._shuffle_order:
+                try:
+                    self._shuffle_position = self._shuffle_order.index(idx)
+                except ValueError:
+                    # Si l'index n'est pas dans l'ordre shuffle actuel, on le régénère
+                    self._generate_shuffle_order()
+                    self._shuffle_position = 0 if self._shuffle_order else -1
+            logger.info(f"Saut vers la vidéo : '{video_name}' (index {idx})")
+            return True
+        logger.warning(f"Vidéo introuvable : '{video_name}'")
+        return False
+
     def find_videos_by_name(self, name: str, case_sensitive: bool = False) -> List[Video]:
         """
         Recherche des vidéos par nom (recherche partielle).

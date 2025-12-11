@@ -1,14 +1,277 @@
-import re
 from typing import List
-
 from PySide6 import QtGui, QtCore, QtWidgets
 import src.main.python.ui.widget.constant as constant
 from src.main.python.api.playlist import Playlist
 from src.main.python.api.video import Video
 
 
-class DockWidget(QtWidgets.QDockWidget):
+# ============================================
+# CLASSE VideoListItem PERSONNALISÉE
+# ============================================
 
+class VideoListItem(QtWidgets.QListWidgetItem):
+    """Item personnalisé pour afficher une vidéo avec progression séparée."""
+
+    SEPARATOR_ICON = "➤"
+
+    def __init__(self, index: int, video: Video, parent=None):
+        """
+        Initialise un item de liste personnalisé pour une vidéo.
+
+        Args:
+            index: Position dans la liste (1-based)
+            video: Objet Video contenant nom et progression
+            parent: Widget parent
+        """
+        super().__init__(parent)
+
+        self.index = index
+        self.video = video
+        self._name = video.name if hasattr(video, 'name') else ""
+        self._is_current = False
+        self._is_read = False
+
+        # Créer le widget conteneur
+        self.container = QtWidgets.QWidget()
+
+        # Label pour l'index et le nom
+        self.text_label = QtWidgets.QLabel()
+
+        # Label pour la progression
+        self.progress_label = QtWidgets.QLabel()
+
+        # Ajouter les labels au layout
+        self.layout = QtWidgets.QHBoxLayout(self.container)
+        self.layout.setContentsMargins(2, 0, 2, 0)
+        self.layout.addWidget(self.text_label)
+        self.layout.addWidget(self.progress_label)
+        self.layout.addStretch()
+
+        # Mettre à jour l'affichage
+        self.update_display()
+
+    # ============================================
+    # PROPRIÉTÉS AVEC LOGIQUE AUTOMATIQUE
+    # ============================================
+
+    @property
+    def name(self) -> str:
+        """Retourne le nom de la vidéo."""
+        return self._name
+
+    @name.setter
+    def name(self, value: str):
+        """Définit le nom de la vidéo et met à jour l'affichage."""
+        self._name = str(value)
+        self.update_display()
+
+    @property
+    def is_current(self) -> bool:
+        """Retourne si cet item est la vidéo en cours de lecture."""
+        return self._is_current
+
+    @is_current.setter
+    def is_current(self, value: bool):
+        """Définit si cet item est la vidéo en cours de lecture."""
+        old_value = self._is_current
+        new_value = bool(value)
+
+        if old_value == new_value:
+            return
+
+        self._is_current = new_value
+
+        # Logique automatique: si on passe de True à False, marquer comme lue
+        if old_value and not new_value:
+            self.is_read = True
+
+        self.apply_style()
+
+    @property
+    def is_read(self) -> bool:
+        """Retourne si cette vidéo a déjà été lue."""
+        return self._is_read
+
+    @is_read.setter
+    def is_read(self, value: bool):
+        """Définit si cette vidéo a déjà été lue."""
+        if self._is_read != value:
+            self._is_read = bool(value)
+            # Si on marque comme lu, s'assurer qu'on n'est plus en cours
+            if value and self._is_current:
+                self._is_current = False
+            self.apply_style()
+
+    @property
+    def state(self) -> str:
+        """Retourne l'état actuel sous forme de chaîne."""
+        if self._is_current:
+            return "current"
+        elif self._is_read:
+            return "read"
+        else:
+            return "normal"
+
+    # ============================================
+    # MÉTHODES D'AFFICHAGE
+    # ============================================
+
+    def update_display(self):
+        """Met à jour l'affichage de l'item."""
+        # Texte principal : "X ➤ NomDeLaVideo.ext"
+        main_text = f"{self.index} {self.SEPARATOR_ICON}  {self.name}"
+        self.text_label.setText(main_text)
+
+        # Progression
+        progress_text = f"{self.video.progress}"
+        self.progress_label.setText(progress_text)
+
+        # Appliquer les styles
+        self.apply_style()
+
+    def apply_style(self):
+
+        if self._is_current:
+            # État: EN COURS DE LECTURE
+            self.text_label.setStyleSheet("""
+                QLabel {
+                    font-weight: 600;
+                    color: #ffffff;
+                    font-size: 14px;
+                    background-color: transparent;
+                }
+            """)
+            self.progress_label.setStyleSheet("""
+                QLabel {
+                    font-weight: 600;
+                    color: #4CAF50;
+                    font-size: 16px;
+                    background-color: transparent;
+                }
+            """)
+
+        elif self._is_read:
+            # État: DÉJÀ VUE
+            self.text_label.setStyleSheet("""
+                QLabel {
+                    font-weight: normal;
+                    color: #a5d6a7;
+                    font-size: 12px;
+                    background-color: transparent;
+                }
+            """)
+            self.progress_label.setStyleSheet("""
+                QLabel {
+                    font-weight: 500;
+                    color: #81C784;
+                    font-size: 14px;
+                    background-color: transparent;
+                }
+            """)
+
+        else:
+            # État: NORMAL (pas encore lue)
+            self.text_label.setStyleSheet("""
+                QLabel {
+                    color: #e0e0e0;
+                    font-size: 14px;
+                    background-color: transparent;
+                }
+            """)
+            self.progress_label.setStyleSheet("""
+                QLabel {
+                    color: #4CAF50;
+                    font-size: 12px;
+                    font-weight: 500;
+                    background-color: transparent;
+                }
+            """)
+
+    # ============================================
+    # MÉTHODES PUBLIQUES
+    # ============================================
+
+    def set_current(self, is_current: bool):
+        """
+        Définit si cet item est la vidéo en cours de lecture.
+
+        Args:
+            is_current: True si c'est la vidéo en cours
+        """
+        self.is_current = is_current
+
+    def set_read(self, is_read: bool):
+        """
+        Marque la vidéo comme déjà lue.
+
+        Args:
+            is_read: True si la vidéo a été lue
+        """
+        self.is_read = is_read
+
+
+    def get_video_name(self) -> str:
+        """
+        Extrait le nom de la vidéo depuis l'item.
+
+        Returns:
+            Nom de la vidéo
+        """
+        return self.name
+
+    def set_widget_to_list(self, list_widget: QtWidgets.QListWidget):
+        """
+        Associe le widget à un QListWidget.
+
+        Args:
+            list_widget: Le QListWidget parent
+        """
+        list_widget.setItemWidget(self, self.container)
+
+    def cleanup(self):
+        """
+        Nettoie proprement les ressources de l'item.
+        À appeler avant suppression.
+        """
+        try:
+            if hasattr(self, 'container'):
+                # Supprimer les widgets enfants
+                if hasattr(self, 'layout'):
+                    while self.layout.count():
+                        child = self.layout.takeAt(0)
+                        if child and child.widget():
+                            child.widget().setParent(None)
+                    self.layout.deleteLater()
+
+                self.container.deleteLater()
+
+            # Nettoyer les références
+            self.text_label = None
+            self.progress_label = None
+            self.container = None
+            self.layout = None
+
+        except Exception as e:
+            print(f"Erreur lors du nettoyage: {e}")
+
+    # ============================================
+    # REPRÉSENTATION
+    # ============================================
+
+    def __str__(self) -> str:
+        """Représentation textuelle de l'item."""
+        return f"VideoListItem[{self.index}: {self.name} ({self.state})]"
+
+    def __repr__(self) -> str:
+        """Représentation détaillée de l'item."""
+        return f"VideoListItem(index={self.index}, name='{self.name}', state='{self.state}')"
+
+
+# ============================================
+# CLASSE DockWidget PRINCIPALE
+# ============================================
+
+class DockWidget(QtWidgets.QDockWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setup_ui()
@@ -21,43 +284,34 @@ class DockWidget(QtWidgets.QDockWidget):
         self.create_layouts()
         self.add_widgets_to_layouts()
         self.setup_connections()
-        pass
 
     def customize_self(self):
         self.setWindowTitle("Playlist")
         self.setMinimumWidth(250)
-        pass
 
     def icon_font_initialize(self, size=14):
         dir = constant.find_path("material-symbols-outlined.ttf")
         font_id = QtGui.QFontDatabase.addApplicationFont(str(dir))
         self.icon_font = QtGui.QFont(QtGui.QFontDatabase.applicationFontFamilies(font_id)[0])
         self.icon_font.setPointSize(size)
-        pass
 
     def create_widgets(self):
         # Widget principal
         self.main_widget = QtWidgets.QWidget()
-
         # TabWidget
         self.tab_widget = QtWidgets.QTabWidget()
-
         # Onglet 1 : Liste de lecture
         self.tab_current = QtWidgets.QWidget()
         self.lstw = QtWidgets.QListWidget()
-
         # Boutons pour l'onglet 1
         self.btn_add_to_playlist = QtWidgets.QPushButton("\ue03b")
         self.btn_remove_to_playlist = QtWidgets.QPushButton("\ueb80")
-
         # Onglet 2 : Archives
         self.tab_archive = QtWidgets.QWidget()
         self.lstw_archive = QtWidgets.QListWidget()
-
         # Boutons pour l'onglet 2
         self.btn_save_playlist = QtWidgets.QPushButton("\ueb60")
         self.btn_remove_save = QtWidgets.QPushButton("\ue872")
-        pass
 
     def modify_widgets(self):
         # Style général du tabWidget
@@ -94,7 +348,7 @@ class DockWidget(QtWidgets.QDockWidget):
             }
         """)
 
-        # Style des ListWidgets - Professionnel et épuré
+        # Style harmonisé pour les ListWidgets avec VideoListItem
         list_style = """
             QListWidget {
                 background-color: rgba(30, 30, 30, 0.7);
@@ -105,30 +359,19 @@ class DockWidget(QtWidgets.QDockWidget):
                 font-family: 'Segoe UI', Arial, sans-serif;
                 outline: none;
                 padding: 2px;
+                alternate-background-color: rgba(255, 255, 255, 0.03);
             }
             QListWidget::item {
-                padding: 10px 12px;
+                height: 40px;  /* Hauteur fixe pour VideoListItem */
+                padding: 0px;
                 margin: 1px 0;
-                border-radius: 3px;
                 border: none;
-                background-color: transparent;
-                border-left: 3px solid transparent;
-            }
-            QListWidget::item:nth-child(even) {
-                background-color: rgba(255, 255, 255, 0.03);
-            }
-            QListWidget::item:nth-child(odd) {
-                background-color: rgba(255, 255, 255, 0.01);
             }
             QListWidget::item:selected {
                 background-color: rgba(76, 175, 80, 0.15);
-                color: #ffffff;
-                border-left: 3px solid #4CAF50;
-                font-weight: 500;
             }
             QListWidget::item:hover:!selected {
                 background-color: rgba(255, 255, 255, 0.07);
-                border-left: 3px solid rgba(255, 255, 255, 0.2);
             }
             QScrollBar:vertical {
                 background-color: rgba(40, 40, 40, 0.5);
@@ -173,7 +416,6 @@ class DockWidget(QtWidgets.QDockWidget):
                 transform: translateY(0px);
             }
         """
-
         # Configuration spécifique des boutons
         buttons_config = [
             (self.btn_add_to_playlist, "#4CAF50", "Ajouter un fichier", "#4CAF50", "rgba(76, 175, 80, 0.1)"),
@@ -181,7 +423,6 @@ class DockWidget(QtWidgets.QDockWidget):
             (self.btn_save_playlist, "#2196F3", "Créer une nouvelle playlist", "#2196F3", "rgba(33, 150, 243, 0.1)"),
             (self.btn_remove_save, "#FF5252", "Supprimer une playlist", "#FF5252", "rgba(255, 82, 82, 0.1)")
         ]
-
         for btn, color, tooltip, hover_color, hover_bg in buttons_config:
             btn.setFont(self.icon_font)
             btn.setStyleSheet(f"""
@@ -200,197 +441,242 @@ class DockWidget(QtWidgets.QDockWidget):
 
         # Configuration des listes
         self.lstw.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.lstw.setAlternatingRowColors(True)  # Important pour l'alternance
         self.lstw_archive.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
 
         # Noms des onglets
         self.tab_widget.addTab(self.tab_current, "Playlist Active")
         self.tab_widget.addTab(self.tab_archive, "Gestion des Playlists")
-        pass
 
     def create_layouts(self):
-        # Layout principal
         self.main_layout = QtWidgets.QVBoxLayout(self.main_widget)
         self.main_layout.setContentsMargins(3, 0, 3, 3)
         self.main_layout.setSpacing(0)
 
-        # Layout pour l'onglet 1 (liste + boutons)
         self.tab_current_layout = QtWidgets.QVBoxLayout(self.tab_current)
         self.tab_current_layout.setContentsMargins(0, 0, 0, 0)
         self.tab_current_layout.setSpacing(5)
 
-        # Layout horizontal pour les boutons de l'onglet 1
         self.current_buttons_layout = QtWidgets.QHBoxLayout()
         self.current_buttons_layout.setSpacing(5)
 
-        # Layout pour l'onglet 2 (liste + boutons)
         self.tab_archive_layout = QtWidgets.QVBoxLayout(self.tab_archive)
         self.tab_archive_layout.setContentsMargins(0, 0, 0, 0)
         self.tab_archive_layout.setSpacing(5)
 
-        # Layout horizontal pour les boutons de l'onglet 2
         self.archive_buttons_layout = QtWidgets.QHBoxLayout()
         self.archive_buttons_layout.setSpacing(5)
-        pass
 
     def add_widgets_to_layouts(self):
-        # Ajouter le tabWidget
         self.main_layout.addWidget(self.tab_widget)
 
-        # Configuration de l'onglet 1
-        self.tab_current_layout.addWidget(self.lstw, 1)  # La liste prend tout l'espace disponible
-
-        # Créer un layout vertical pour centrer les boutons
+        # Onglet 1
+        self.tab_current_layout.addWidget(self.lstw, 1)
         current_buttons_vbox = QtWidgets.QVBoxLayout()
-
-        # Ajouter les boutons horizontalement au centre
         current_buttons_vbox.addLayout(self.current_buttons_layout)
-
-        # Ajouter ce layout vertical à l'onglet
         self.tab_current_layout.addLayout(current_buttons_vbox)
-
-        # Ajouter les boutons au layout horizontal
         self.current_buttons_layout.addWidget(self.btn_add_to_playlist)
         self.current_buttons_layout.addWidget(self.btn_remove_to_playlist)
 
-        # Configuration de l'onglet 2
-        self.tab_archive_layout.addWidget(self.lstw_archive, 1)  # La liste prend tout l'espace disponible
-
-        # Créer un layout vertical pour centrer les boutons
+        # Onglet 2
+        self.tab_archive_layout.addWidget(self.lstw_archive, 1)
         archive_buttons_vbox = QtWidgets.QVBoxLayout()
-
-        # Ajouter les boutons horizontalement au centre
         archive_buttons_vbox.addLayout(self.archive_buttons_layout)
-
-        # Ajouter ce layout vertical à l'onglet
         self.tab_archive_layout.addLayout(archive_buttons_vbox)
-
-        # Ajouter les boutons au layout horizontal
         self.archive_buttons_layout.addWidget(self.btn_save_playlist)
         self.archive_buttons_layout.addWidget(self.btn_remove_save)
 
-        # Définir le widget principal du dock
         self.setWidget(self.main_widget)
-        pass
 
     def setup_connections(self):
-        # Vous pouvez ajouter vos connections ici
         pass
 
     # ============================================
     # MÉTHODES DE GESTION DU PLAYLIST
     # ============================================
 
-    def add_playlist_state(self,item:Playlist):
-        if not self.lstw_archive.findItems(item.name,QtCore.Qt.MatchFlag.MatchEndsWith):
+    def add_playlist_state(self, item: Playlist):
+        if not self.lstw_archive.findItems(item.name, QtCore.Qt.MatchFlag.MatchEndsWith):
             self.lstw_archive.addItem(item.name)
             return True
         return False
 
     def remove_playlist_state(self, item: Playlist):
-        """Supprime une playlist de la liste d'archives"""
-        # Chercher l'item dans la liste
         items = self.lstw_archive.findItems(item.name, QtCore.Qt.MatchFlag.MatchExactly)
-
         if items:
-            # Si on trouve l'item, le supprimer
             row = self.lstw_archive.row(items[0])
             self.lstw_archive.takeItem(row)
             return True
-
         return False
 
     def get_selected_playlist_name(self) -> str:
-        """Retourne le nom de la playlist sélectionnée dans la liste"""
         selected_items = self.lstw_archive.selectedItems()
-
         if selected_items:
-            # Retourner le texte du premier item sélectionné
             return selected_items[0].text()
         return ""
 
-    def set_active_playlist(self,playlist: Playlist):
+    def set_active_playlist(self, playlist: Playlist):
         items = self.lstw_archive.findItems(playlist.name, QtCore.Qt.MatchFlag.MatchExactly)
         if items:
             self.lstw_archive.setCurrentItem(items[0])
             index = self.tab_widget.indexOf(self.tab_current)
             self.tab_widget.setTabText(index, playlist.name)
-        pass
+            return playlist
 
     # ============================================
-    # MÉTHODES DE GESTION DES VIDEOS
+    # NOUVELLES MÉTHODES POUR VideoListItem
     # ============================================
 
-    def add_video_to_playlist(self,item:Video):
-        if item:
-            if not self.lstw.findItems(item.name,QtCore.Qt.MatchFlag.MatchEndsWith):
-                self.lstw.addItem(f"{self.lstw.count() + 1}--- {item.name}")
+    def add_video_to_playlist(self, video: Video) -> bool:
+        """
+        Ajoute une vidéo dans la liste avec VideoListItem.
+
+        Args:
+            video: Objet Video à ajouter
+
+        Returns:
+            True si ajout réussi, False sinon
+        """
+        if not video or not hasattr(video, 'name'):
+            return False
+
+        # Vérifier si la vidéo existe déjà
+        for i in range(self.lstw.count()):
+            item = self.lstw.item(i)
+            if isinstance(item, VideoListItem) and item.name == video.name:
+                return False
+
+        # Créer et ajouter l'item
+        index = self.lstw.count() + 1
+        item = VideoListItem(index, video)
+        self.lstw.addItem(item)
+        self.lstw.setItemWidget(item, item.container)
+
+
+        return True
+
+    def remove_video_from_playlist(self, video_name: str) -> bool:
+        """
+        Supprime une vidéo par son nom.
+
+        Args:
+            video_name: Nom de la vidéo à supprimer
+
+        Returns:
+            True si suppression réussie, False sinon
+        """
+        for i in range(self.lstw.count()):
+            item = self.lstw.item(i)
+            if isinstance(item, VideoListItem) and item.name == video_name:
+                # Nettoyer l'item
+                item.cleanup()
+                # Retirer de la liste
+                self.lstw.takeItem(i)
+                # Réindexer les items restants
+                self.reindex_video_items()
                 return True
         return False
 
-    def remove_video_from_playlist(self, item):
-        """Supprime une vidéo de la liste de playlist"""
-        items = self.lstw.findItems(item, QtCore.Qt.MatchFlag.MatchExactly)
+    def reindex_video_items(self):
+        """Réindexe tous les VideoListItem."""
+        for i in range(self.lstw.count()):
+            item = self.lstw.item(i)
+            if isinstance(item, VideoListItem):
+                item.index = i + 1
+                item.update_display()
 
-        if items:
-            row = self.lstw.row(items[0])
-            self.lstw.takeItem(row)
-            return True
+    def set_current_video(self, video_name: str) -> bool:
+        """
+        Définit la vidéo en cours de lecture.
+
+        Args:
+            video_name: Nom de la vidéo à marquer comme en cours
+
+        Returns:
+            True si vidéo trouvée et marquée, False sinon
+        """
+        # Désactiver toutes les vidéos courantes
+        item = self.lstw.currentItem()
+        if isinstance(item, VideoListItem):
+            item.is_current = False
+
+        # Activer la nouvelle vidéo
+        for i in range(self.lstw.count()):
+            item = self.lstw.item(i)
+            if isinstance(item, VideoListItem) and item.name == video_name:
+                item.is_current = True
+                self.lstw.clearSelection()
+                self.lstw.setCurrentItem(item)
+                return True
 
         return False
 
-    def get_selected_video_names(self) -> List[str]:
-        """Retourne les noms de toutes les vidéos sélectionnées"""
-        selected_items = self.lstw.selectedItems()
-
-        if selected_items:
-            return [item.text() for item in selected_items]
-        return []
-
-    def set_active_current_video(self,video: Video):
-        items = self.lstw.findItems(f"--- {video.name}", QtCore.Qt.MatchFlag.MatchEndsWith)
-        if items:
-            self.lstw.setCurrentItem(items[0])
+    def update_video_progress(self,video_name: str) :
+        """
+        Met à jour la progression d'une vidéo.
+        """
+        item = self.find_video_item_by_name(video_name)
+        item.update_display()
         pass
 
-    def extract_video_name_from_listitem(self, text: str) -> str:
+    def get_selected_video_names(self) -> List[str]:
         """
-        Extrait le nom de la vidéo d'un item de liste, quel que soit le format.
-
-        Formats supportés:
-        - "X--- nom_video.ext" (avec numéro)
-        - "nom_video.ext" (direct, sans numéro)
-        - "123video.mp4" (commence par chiffre, sans séparateur)
-
-        Args:
-            text: Texte de l'item de liste
+        Retourne les noms des vidéos sélectionnées.
 
         Returns:
-            Nom de la vidéo (item.name original)
+            Liste des noms de vidéos sélectionnées
         """
-        text = text.strip()
+        selected_items = self.lstw.selectedItems()
+        return [
+            item.name for item in selected_items
+            if isinstance(item, VideoListItem)
+        ]
 
-        if not text:
-            return ""
+    def clear_video_playlist(self):
+        """Vide complètement la playlist vidéo."""
+        # Nettoyer tous les items
+        for i in range(self.lstw.count()):
+            item = self.lstw.item(i)
+            if isinstance(item, VideoListItem):
+                item.cleanup()
 
-        # Vérifier si le texte commence par un format "X--- "
-        if re.match(r'^\d+\s*---\s+', text):
-            # Format "X--- nom_video.ext"
-            # Extraire la partie après "---"
-            parts = text.split("---", 1)
-            if len(parts) > 1:
-                return parts[1].strip()
+        # Vider la liste
+        self.lstw.clear()
 
-        # Si pas de format "X--- ", vérifier si c'est un nom qui commence par des chiffres
-        # mais qui n'a PAS le format "X--- "
-        elif re.match(r'^\d+', text):
-            # Le texte commence par des chiffres, mais pas suivi de "---"
-            # C'est probablement un nom comme "123video.mp4"
-            return text  # On retourne le texte complet
+    def find_video_item_by_name(self, video_name: str) -> VideoListItem | None:
+        """
+        Recherche un VideoListItem par son nom.
 
-        # Sinon, c'est probablement un nom simple sans numéro au début
-        return text
+        Args:
+            video_name: Nom de la vidéo à rechercher
 
-    pass
+        Returns:
+            VideoListItem trouvé ou None
+        """
+        for i in range(self.lstw.count()):
+            item = self.lstw.item(i)
+            if isinstance(item, VideoListItem) and item.name == video_name:
+                return item
+        return None
+
+    def get_video_items(self) -> List[VideoListItem]:
+        """
+        Retourne tous les VideoListItem de la playlist.
+
+        Returns:
+            Liste de tous les VideoListItem
+        """
+        items = []
+        for i in range(self.lstw.count()):
+            item = self.lstw.item(i)
+            if isinstance(item, VideoListItem):
+                items.append(item)
+        return items
+
+
+# ============================================
+# CLASSE DeletePlaylistDialog (inchangée)
+# ============================================
 
 class DeletePlaylistDialog(QtWidgets.QDialog):
     def __init__(self, playlists, parent=None):
@@ -603,18 +889,12 @@ class DeletePlaylistDialog(QtWidgets.QDialog):
 
     def on_confirm_dialog_closed(self, result):
         """Gère la fermeture de la fenêtre de confirmation"""
-        # Si result == Rejected, c'est que l'utilisateur a cliqué sur "Annuler"
-        # ou fermé la fenêtre directement
         if result == QtWidgets.QDialog.DialogCode.Rejected:
-            # Vérifier si c'est un "Annuler complet" ou juste "Revoir"
             if not hasattr(self, '_back_to_selection_flag') or not self._back_to_selection_flag:
-                # C'est un "Annuler complet" : fermer la principale aussi
                 self.reject()
             else:
-                # C'est un "Revoir" : ne rien faire, la principale reste ouverte
                 self._back_to_selection_flag = False
         elif result == QtWidgets.QDialog.DialogCode.Accepted:
-            # "Supprimer" confirmé
             self.accept()
 
     def back_to_selection(self):

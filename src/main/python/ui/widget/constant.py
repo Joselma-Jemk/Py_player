@@ -239,6 +239,7 @@ ICON_VOLUME_OFF = get_icon_path("volume_off", "light")
 ICON_VOLUME_UP = get_icon_path("volume_up", "light")
 ICON_MINIMIZE = get_icon_path("minimize", "light")
 ICON_CLOSE = get_icon_path("close", "light")
+ICON_PLAYED = get_icon_path("check_circle", "light")
 
 # Icônes du thème dark (définies dynamiquement)
 ICON_DARK_ADD = get_icon_path("add", "dark")
@@ -316,6 +317,7 @@ PRESSED_COLOR = "#636366"
 PRINCIPAL_TEXT_COLOR = "#f2f2f7"
 OK_ONE_COLOR = "#2196F3"
 ACCENT_COLOR = "#ff3b30"
+ACTIVE_BG_COLOR = "#0DFFFFFF"
 
 # Extensions supportées
 
@@ -324,6 +326,8 @@ VIDEO_EXTENSIONS = {
         '.wmv', '.flv', '.mpeg', '.mpg', '.m4v'
     }
 SUPPORTED_AUDIO_FORMATS = {".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a"}
+
+SEPARATOR_ICON = "⮞"  # Icône entre nom et progression (modifiable)
 
 # Fonction utilitaire pour changer de thème
 def set_theme(theme: str):

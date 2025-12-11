@@ -119,6 +119,10 @@ class Video:
             return 0
 
     @property
+    def progress(self):
+        return self.get_progress_bar(self.state.progress)
+
+    @property
     def resolution(self) -> str:
         """Retourne la résolution formatée."""
         if self.width > 0 and self.height > 0:
@@ -141,6 +145,10 @@ class Video:
         if self.width > 0 and self.height > 0:
             return round(self.width / self.height, 2)
         return 0.0
+
+    @property
+    def is_played(self):
+        return self.state.progress > 0.9 and self.state.playing
 
     def update_metadata(self, width: int = 0, height: int = 0, duration: int = 0) -> None:
         """
@@ -177,6 +185,21 @@ class Video:
             muted=muted
         )
         return True
+
+    def get_progress_bar(self, progress: float) -> str:
+        """
+        Style segments modernes.
+        Exemple : ▰▰▰▱▱ 60%
+        """
+        progress = max(0.0, min(1.0, progress))
+        full_blocks = round(progress * 10)
+
+        full = "▰"
+        empty = "▱"
+
+        bar = full * full_blocks + empty * (10 - full_blocks)
+
+        return f"{bar}"
 
     def reset_state(self) -> bool:
         """Réinitialise l'état de lecture à zéro."""

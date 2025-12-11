@@ -47,7 +47,7 @@ class PlaylistManager:
         self._load_config()
         self._load_all_playlists()
 
-        self.auto_cleanup_backups_if_needed(threshold_count=50)
+        self.auto_cleanup_backups_if_needed(threshold_count=5)
 
         #Initialisé si vide
         if self.playlist_count == 0:
@@ -196,6 +196,7 @@ class PlaylistManager:
 
         # Sauvegarder la dernière playlist jouée
         self._save_last_played()
+        self._save_config()
 
         logger.info(f"Playlist active: {playlist_id}")
         return True
@@ -233,6 +234,7 @@ class PlaylistManager:
 
         if success:
             logger.info("Toutes les playlists sauvegardées")
+
 
         return success
 

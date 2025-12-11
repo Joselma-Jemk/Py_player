@@ -5,7 +5,7 @@ import src.main.python.ui.widget.constant as constant
 from src.main.python.api.playlist import Playlist
 from src.main.python.api.pyplayer_manager import PlaylistManager
 from src.main.python.api.video import Video
-from src.main.python.ui.widget.dock_widget import DockWidget, DeletePlaylistDialog
+from src.main.python.ui.widget.dock_widget import DockWidget, DeletePlaylistDialog, VideoListItem
 from src.main.python.ui.widget.menu_bar import MenuBarWidget
 from src.main.python.ui.widget.player import PlayerWidget
 from src.main.python.ui.widget.staturbar_widget import StatusBar
@@ -84,6 +84,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.dock_widget.btn_save_playlist.clicked.connect(self.create_new_playlist)
         self.dock_widget.btn_remove_save.clicked.connect(self.delete_playlist)
         self.dock_widget.lstw_archive.itemSelectionChanged.connect(self.set_manually_active_playlist)
+        self.dock_widget.lstw.itemDoubleClicked.connect(self.double_click)
 
         #Toolbar
         self.toolbar_widget.btn_playlist.clicked.connect(self.playlist_show_or_hide)
@@ -101,6 +102,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.player_widget.signal_double_click.connect(self.btn_play_pause_update)
         self.player_widget.video_player.mediaStatusChanged.connect(self.btn_play_pause_update)
         self.player_widget.video_player.mediaStatusChanged.connect(self.playlist_play_mode_update)
+        self.player_widget.video_player.mediaStatusChanged.connect(self.next_video_if_end)
         self.player_widget.video_player.mediaStatusChanged.connect(self.current_video_update_metadata)
         self.player_widget.video_player.playbackStateChanged.connect(self.on_playback_state_changed)
         self.player_widget.video_player.positionChanged.connect(self.save_video_on_position_changed)
@@ -786,9 +788,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def remove_video_from_playlist(self):
         """Supprime les vidéos sélectionnées"""
         # Récupérer les noms sélectionnés
-        items = self.dock_widget.get_selected_video_names()
+        video_names = self.dock_widget.get_selected_video_names()
 
-        if not items:
+        if not video_names:
             QtWidgets.QMessageBox.information(
                 self,
                 "Sélection requise",
@@ -796,12 +798,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 QtWidgets.QMessageBox.StandardButton.Ok
             )
             return
-
-        # Extraire les noms réels des vidéos
-        video_names = []
-        for item in items:
-            video_name = self.dock_widget.extract_video_name_from_listitem(item)
-            video_names.append(video_name)
 
         # Créer le message avec les noms des vidéos
         if len(video_names) == 1:
@@ -832,25 +828,21 @@ class MainWindow(QtWidgets.QMainWindow):
             return  # Annuler la suppression
 
         # Supprimer chaque vidéo
-        for item in items:
-            # Extraire le nom réel de la vidéo
-            video_name = self.dock_widget.extract_video_name_from_listitem(item)
-            # Chercher la vidéo
+        for video_name in video_names:
             found_videos = self.active_playlist.find_videos_by_name(video_name, case_sensitive=True)
-
             if found_videos:
                 video = found_videos[0]
                 # Supprimer de la playlist
                 self.active_playlist.remove_video(video)
                 # Supprimer de l'interface
-                self.dock_widget.remove_video_from_playlist(item)
+                self.dock_widget.remove_video_from_playlist(video_name)
 
         # Message de confirmation finale (optionnel)
-        if len(items) > 1:
+        if len(video_names) > 1:
             QtWidgets.QMessageBox.information(
                 self,
                 "Suppression terminée",
-                f"{len(items)} vidéos ont été supprimées de la playlist.",
+                f"{len(video_names)} vidéos ont été supprimées de la playlist.",
                 QtWidgets.QMessageBox.StandardButton.Ok
             )
 
@@ -892,6 +884,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     volume= player_widget.audio_output.volume(),
                     muted= player_widget.audio_output.isMuted()
                 )
+                self.dock_widget.update_video_progress(self.current_video.name)
             return
         self.active_playlist.update_current_video_state(
             position=position,
@@ -899,6 +892,7 @@ class MainWindow(QtWidgets.QMainWindow):
             volume=player_widget.audio_output.volume(),
             muted=player_widget.audio_output.isMuted()
         )
+        self.dock_widget.update_video_progress(self.current_video.name)
         return
 
     # ============================================
@@ -964,6 +958,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.active_playlist.get_next_video()
         self.play_video()
 
+    def next_video_if_end(self,status):
+        if status == QtMultimedia.QMediaPlayer.MediaStatus.EndOfMedia and self.active_playlist.get_next_video()[0]:
+            self.next_video()
+        pass
+
     def previous_video(self):
         self.active_playlist.get_previous_video()
         self.play_video()
@@ -974,7 +973,14 @@ class MainWindow(QtWidgets.QMainWindow):
         player.setSource(video_url)
         if 1000 < self.current_video.state.position < self.current_video.state.duration:
             self.player_widget.video_player.setPosition(self.current_video.state.position)
+        self.dock_widget.set_current_video(self.current_video.name)
         player.play()
+
+    def double_click(self,item):
+        if isinstance(item, VideoListItem):
+            self.active_playlist.jump_to_video_by_name(item.name)
+            self.play_video()
+        pass
 
     def btn_play_pause_update(self, status=None):
         """
