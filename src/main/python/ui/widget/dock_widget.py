@@ -4,7 +4,6 @@ import src.main.python.ui.widget.constant as constant
 from src.main.python.api.playlist import Playlist
 from src.main.python.api.video import Video
 
-
 # ============================================
 # CLASSE VideoListItem PERSONNALISÉE
 # ============================================
@@ -33,19 +32,30 @@ class VideoListItem(QtWidgets.QListWidgetItem):
 
         # Créer le widget conteneur
         self.container = QtWidgets.QWidget()
+        self.container.setProperty("class", "video-item-container")
 
         # Label pour l'index et le nom
         self.text_label = QtWidgets.QLabel()
+        self.text_label.setProperty("class", "video-item-text")
 
-        # Label pour la progression
+        # Label pour la progression - bloqué sur le côté droit
         self.progress_label = QtWidgets.QLabel()
+        self.progress_label.setProperty("class", "video-item-progress")
+        self.progress_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
 
         # Ajouter les labels au layout
         self.layout = QtWidgets.QHBoxLayout(self.container)
-        self.layout.setContentsMargins(2, 0, 2, 0)
-        self.layout.addWidget(self.text_label)
-        self.layout.addWidget(self.progress_label)
-        self.layout.addStretch()
+
+        # Marges normales (6px à gauche pour le padding)
+        self.normal_margins = QtCore.QMargins(6, 4, 4, 4)
+        # Marges sélectionnées (9px à gauche = 6px padding + 3px pour la bordure)
+        self.selected_margins = QtCore.QMargins(9, 4, 4, 4)
+
+        # Appliquer les marges normales par défaut
+        self.layout.setContentsMargins(self.normal_margins)
+
+        self.layout.addWidget(self.text_label, 1)  # Facteur d'expansion 1 pour prendre l'espace
+        self.layout.addWidget(self.progress_label, 0, QtCore.Qt.AlignmentFlag.AlignRight)
 
         # Mettre à jour l'affichage
         self.update_display()
@@ -130,66 +140,27 @@ class VideoListItem(QtWidgets.QListWidgetItem):
         self.apply_style()
 
     def apply_style(self):
+        """Applique les styles sans écraser le fond parent."""
+        # Définir l'état comme propriété CSS
+        self.text_label.setProperty("state", self.state)
+        self.progress_label.setProperty("state", self.state)
 
-        if self._is_current:
-            # État: EN COURS DE LECTURE
-            self.text_label.setStyleSheet("""
-                QLabel {
-                    font-weight: 600;
-                    color: #ffffff;
-                    font-size: 14px;
-                    background-color: transparent;
-                }
-            """)
-            self.progress_label.setStyleSheet("""
-                QLabel {
-                    font-weight: 600;
-                    color: #4CAF50;
-                    font-size: 16px;
-                    background-color: transparent;
-                }
-            """)
-
-        elif self._is_read:
-            # État: DÉJÀ VUE
-            self.text_label.setStyleSheet("""
-                QLabel {
-                    font-weight: normal;
-                    color: #a5d6a7;
-                    font-size: 12px;
-                    background-color: transparent;
-                }
-            """)
-            self.progress_label.setStyleSheet("""
-                QLabel {
-                    font-weight: 500;
-                    color: #81C784;
-                    font-size: 14px;
-                    background-color: transparent;
-                }
-            """)
-
-        else:
-            # État: NORMAL (pas encore lue)
-            self.text_label.setStyleSheet("""
-                QLabel {
-                    color: #e0e0e0;
-                    font-size: 14px;
-                    background-color: transparent;
-                }
-            """)
-            self.progress_label.setStyleSheet("""
-                QLabel {
-                    color: #4CAF50;
-                    font-size: 12px;
-                    font-weight: 500;
-                    background-color: transparent;
-                }
-            """)
+        # Forcer la mise à jour du style
+        self.text_label.style().unpolish(self.text_label)
+        self.text_label.style().polish(self.text_label)
+        self.progress_label.style().unpolish(self.progress_label)
+        self.progress_label.style().polish(self.progress_label)
 
     # ============================================
     # MÉTHODES PUBLIQUES
     # ============================================
+
+    def set_selected(self, selected: bool):
+        """Ajuste les marges selon la sélection."""
+        if selected:
+            self.layout.setContentsMargins(self.selected_margins)
+        else:
+            self.layout.setContentsMargins(self.normal_margins)
 
     def set_current(self, is_current: bool):
         """
@@ -208,7 +179,6 @@ class VideoListItem(QtWidgets.QListWidgetItem):
             is_read: True si la vidéo a été lue
         """
         self.is_read = is_read
-
 
     def get_video_name(self) -> str:
         """
@@ -265,7 +235,6 @@ class VideoListItem(QtWidgets.QListWidgetItem):
     def __repr__(self) -> str:
         """Représentation détaillée de l'item."""
         return f"VideoListItem(index={self.index}, name='{self.name}', state='{self.state}')"
-
 
 # ============================================
 # CLASSE DockWidget PRINCIPALE
@@ -359,22 +328,95 @@ class DockWidget(QtWidgets.QDockWidget):
                 font-family: 'Segoe UI', Arial, sans-serif;
                 outline: none;
                 padding: 2px;
-                alternate-background-color: rgba(255, 255, 255, 0.03);
             }
+
             QListWidget::item {
-                height: 40px;  /* Hauteur fixe pour VideoListItem */
+                height: 44px;
                 padding: 0px;
                 margin: 1px 0;
                 border: none;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                background-color: rgba(30, 30, 30, 0.7);
             }
+
             QListWidget::item:selected {
                 background-color: rgba(76, 175, 80, 0.15);
+                border-left: 3px solid rgba(76, 175, 80, 0.5);
+                padding-left: 0px;
+                border-radius: 2px;
             }
+
             QListWidget::item:hover:!selected {
                 background-color: rgba(255, 255, 255, 0.07);
             }
+
+            /* Transmettre les états aux widgets personnalisés */
+            QListWidget::item .video-item-container {
+                background-color: inherit;
+            }
+
+            QListWidget::item:selected .video-item-container {
+                background-color: rgba(76, 175, 80, 0.15);
+            }
+
+            QListWidget::item:hover:!selected .video-item-container {
+                background-color: rgba(255, 255, 255, 0.07);
+            }
+
+            /* Styles pour les labels */
+            .video-item-text {
+                background-color: transparent;
+            }
+
+            .video-item-progress {
+                background-color: transparent;
+            }
+
+            /* États normaux */
+            .video-item-text[state="normal"] {
+                color: #e0e0e0;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-size: 12px;
+            }
+
+            .video-item-progress[state="normal"] {
+                color: #4CAF50;
+                font-size: 12px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-weight: 500;
+            }
+
+            /* État en cours */
+            .video-item-text[state="current"] {
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-weight: 600;
+                color: #ffffff;
+                font-size: 12px;
+            }
+
+            .video-item-progress[state="current"] {
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-weight: 600;
+                color: #4CAF50;
+                font-size: 16px;
+            }
+
+            /* État déjà lu */
+            .video-item-text[state="read"] {
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-weight: normal;
+                color: #a5d6a7;
+                font-size: 12px;
+            }
+
+            .video-item-progress[state="read"] {
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-weight: 500;
+                color: #81C784;
+                font-size: 14px;
+            }
+
             QScrollBar:vertical {
-                background-color: rgba(40, 40, 40, 0.5);
                 width: 10px;
                 border-radius: 5px;
                 margin: 2px;
@@ -441,7 +483,7 @@ class DockWidget(QtWidgets.QDockWidget):
 
         # Configuration des listes
         self.lstw.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection)
-        self.lstw.setAlternatingRowColors(True)  # Important pour l'alternance
+        self.lstw.setAlternatingRowColors(False)  # Désactivé pour éviter le problème
         self.lstw_archive.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
 
         # Noms des onglets
@@ -489,7 +531,17 @@ class DockWidget(QtWidgets.QDockWidget):
         self.setWidget(self.main_widget)
 
     def setup_connections(self):
-        pass
+        # Connecter le signal de changement de sélection
+        self.lstw.itemSelectionChanged.connect(self.on_selection_changed)
+
+    def on_selection_changed(self):
+        """Met à jour les marges des items selon leur sélection."""
+        selected_items = self.lstw.selectedItems()
+        for i in range(self.lstw.count()):
+            item = self.lstw.item(i)
+            if isinstance(item, VideoListItem):
+                is_selected = item in selected_items
+                item.set_selected(is_selected)
 
     # ============================================
     # MÉTHODES DE GESTION DU PLAYLIST
@@ -552,7 +604,6 @@ class DockWidget(QtWidgets.QDockWidget):
         self.lstw.addItem(item)
         self.lstw.setItemWidget(item, item.container)
 
-
         return True
 
     def remove_video_from_playlist(self, video_name: str) -> bool:
@@ -595,29 +646,33 @@ class DockWidget(QtWidgets.QDockWidget):
         Returns:
             True si vidéo trouvée et marquée, False sinon
         """
-        # Désactiver toutes les vidéos courantes
-        item = self.lstw.currentItem()
-        if isinstance(item, VideoListItem):
-            item.is_current = False
+        found_current = False
 
-        # Activer la nouvelle vidéo
+        # Parcourir tous les items pour gérer les états
         for i in range(self.lstw.count()):
             item = self.lstw.item(i)
-            if isinstance(item, VideoListItem) and item.name == video_name:
-                item.is_current = True
-                self.lstw.clearSelection()
-                self.lstw.setCurrentItem(item)
-                return True
+            if isinstance(item, VideoListItem):
+                if item.name == video_name:
+                    # C'est la vidéo à marquer comme courante
+                    item.is_current = True
+                    item.is_read = False
+                    found_current = True
+                    self.lstw.clearSelection()
+                    self.lstw.setCurrentItem(item)
+                elif item.is_current:
+                    # Désactiver l'état current des autres vidéos
+                    # Cela déclenchera automatiquement is_read = True via le setter
+                    item.is_current = False
 
-        return False
+        return found_current
 
-    def update_video_progress(self,video_name: str) :
+    def update_video_progress(self, video_name: str):
         """
         Met à jour la progression d'une vidéo.
         """
         item = self.find_video_item_by_name(video_name)
-        item.update_display()
-        pass
+        if item:
+            item.update_display()
 
     def get_selected_video_names(self) -> List[str]:
         """
@@ -672,7 +727,6 @@ class DockWidget(QtWidgets.QDockWidget):
             if isinstance(item, VideoListItem):
                 items.append(item)
         return items
-
 
 # ============================================
 # CLASSE DeletePlaylistDialog (inchangée)
