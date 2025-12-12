@@ -68,9 +68,7 @@ class CustomSlider(QtWidgets.QSlider):
 
                 # Mettre à jour la position du slider
                 self.setValue(int(value))
-
-                # Émettre le signal de changement de valeur
-                self.valueChanged.emit(int(value))
+                # Ne pas émettre valueChanged ici - il sera émis automatiquement par setValue()
 
         # Appeler la méthode parente pour garder le comportement normal
         super().mousePressEvent(event)
@@ -87,6 +85,7 @@ class CustomSlider(QtWidgets.QSlider):
                 self.valueChanged.emit(value)
 
         super().mouseMoveEvent(event)
+
 
 class PlayerWidget(QtWidgets.QWidget):
     signal_double_click = QtCore.Signal()
@@ -189,7 +188,8 @@ class PlayerWidget(QtWidgets.QWidget):
         self.video_player.setPosition(self.slider.value())
 
     def _slider_value_changed(self, value):
-        # Pendant le drag, on met à jour en temps réel (fluide)
+        # NE mettre à jour le lecteur QUE pendant le drag (quand _seeking est True)
+        # Pas pour les changements normaux venant du lecteur
         if self._seeking:
             self.video_player.setPosition(value)
 

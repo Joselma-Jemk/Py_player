@@ -17,7 +17,6 @@ os.environ["QT_MEDIA_BACKEND"]="ffmpeg"
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
-        self.position_timer = QtCore.QTimer()
         self.manager = PlaylistManager()
         self.icon_font = None
         self.setup_ui()
@@ -874,18 +873,6 @@ class MainWindow(QtWidgets.QMainWindow):
     def save_video_on_position_changed(self, position):
         """Appelé par positionChanged du player."""
         player_widget = self.player_widget
-        if not position == self.current_video.duration:
-            self.position_timer.setSingleShot(True)
-            if not self.position_timer.isActive():
-                self.position_timer.start(2500)
-                self.active_playlist.update_current_video_state(
-                    position=position,
-                    playing= player_widget.video_player.isPlaying(),
-                    volume= player_widget.audio_output.volume(),
-                    muted= player_widget.audio_output.isMuted()
-                )
-                self.dock_widget.update_video_progress(self.current_video.name)
-            return
         self.active_playlist.update_current_video_state(
             position=position,
             playing=player_widget.video_player.isPlaying(),
@@ -910,8 +897,6 @@ class MainWindow(QtWidgets.QMainWindow):
     def play_or_pause(self):
         """Joue ou met en pause la vidéo en fonction de l'état du lecteur"""
         player = self.player_widget.video_player
-        print(self.toolbar_widget.player_controls.play_mode == self.active_playlist.play_mode)
-        print(self.toolbar_widget.player_controls.play_mode)
 
         # Si déjà en lecture, mettre en pause
         if player.playbackState() == QtMultimedia.QMediaPlayer.PlaybackState.PlayingState:
@@ -971,10 +956,11 @@ class MainWindow(QtWidgets.QMainWindow):
         player = self.player_widget.video_player
         video_url = QtCore.QUrl.fromLocalFile(str(self.current_video.file_path))
         player.setSource(video_url)
+        player.play()
+        print(self.current_video.state.position)
         if 1000 < self.current_video.state.position < self.current_video.state.duration:
             self.player_widget.video_player.setPosition(self.current_video.state.position)
         self.dock_widget.set_current_video(self.current_video.name)
-        player.play()
 
     def double_click(self,item):
         if isinstance(item, VideoListItem):
