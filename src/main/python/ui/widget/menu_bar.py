@@ -27,6 +27,7 @@ class MenuBarWidget(QtWidgets.QMenuBar):
         self.playlistMenu_customize()
         self.helpMenu_customize()
         self.set_tool_tip(self.ok)
+        self.setup_connection()
 
     def icon_font_initialize(self, size=15):
         font_path = constant.find_path("material-symbols-outlined.ttf", safe=True)
@@ -90,7 +91,7 @@ class MenuBarWidget(QtWidgets.QMenuBar):
         self.fileMenu = QtWidgets.QMenu("Fichier")
         self.playMenu = QtWidgets.QMenu("Lecture")
         self.playlistMenu = QtWidgets.QMenu("Playlist")
-        self.helpMenu = QtWidgets.QMenu("Aide")
+        self.helpMenu = QtWidgets.QMenu("Support")
         pass
     # ------------------------------------------------------------
     # 🎨 APPLICATION DE LA PALETTE SUR TOUS LES MENUS
@@ -179,6 +180,10 @@ class MenuBarWidget(QtWidgets.QMenuBar):
             QtGui.QIcon(constant.ICON_SKIP_PREVIOUS) if constant.ICON_SKIP_PREVIOUS else "",
             "Lire le précédent"
         )
+        self.act_full_screen_mode = self.playMenu.addAction(QtGui.QIcon(constant.ICON_FULLSCREEN),
+        "Mode plein écran")
+        self.act_full_screen_mode.setShortcuts([QtGui.QKeySequence("F11")])
+        self.act_full_screen_mode.setCheckable(True)
         pass
 
     def playlistMenu_customize(self):
@@ -205,6 +210,12 @@ class MenuBarWidget(QtWidgets.QMenuBar):
 
     def helpMenu_customize(self):
         self.addMenu(self.helpMenu)
+
+
+        self.act_help = self.helpMenu.addAction(
+            QtGui.QIcon(constant.ICON_HELP) if constant.ICON_INFOS else "",
+            "Aide  "
+        )
 
         self.act_about = self.helpMenu.addAction(
             QtGui.QIcon(constant.ICON_INFOS) if constant.ICON_INFOS else "",
@@ -256,3 +267,27 @@ class MenuBarWidget(QtWidgets.QMenuBar):
                     self.act_play.setIcon(QtGui.QIcon(constant.ICON_PLAY))
                 self.act_play.setToolTip("Lire")
                 self.act_play.setText("Lire")
+
+    def toggle_full_screen_display(self, checked):
+        """
+        Bascule entre mode plein écran et mode normal
+        Met à jour l'icône et le texte de l'action
+
+        Args:
+            checked (bool): État de l'action (True = plein écran, False = normal)
+        """
+        if checked:
+            self.act_full_screen_mode.setIcon(QtGui.QIcon(constant.ICON_FULLSCREEN_EXIT))
+            self.act_full_screen_mode.setText("Quitter le plein écran")
+        else:
+            self.act_full_screen_mode.setIcon(QtGui.QIcon(constant.ICON_FULLSCREEN))
+            self.act_full_screen_mode.setText("Mode plein écran")
+
+        # Optionnel: Forcer la mise à jour du menu
+        self.playMenu.repaint()
+
+    def setup_connection(self):
+        self.act_full_screen_mode.triggered.connect(self.toggle_full_screen_display)
+        pass
+    pass
+

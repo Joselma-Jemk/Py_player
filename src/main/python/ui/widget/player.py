@@ -214,6 +214,13 @@ class PlayerWidget(QtWidgets.QWidget):
         self.placeholder_label.setVisible(True)
         self.video_output.setVisible(False)
 
+    def position_to_hms(self, ms):
+        seconds = ms // 1000
+        h = seconds // 3600
+        m = (seconds % 3600) // 60
+        s = seconds % 60
+        return f"{h:02d}:{m:02d}:{s:02d}"
+
     def mouseDoubleClickEvent(self, event):
         self.signal_double_click.emit()
         super().mouseDoubleClickEvent(event)

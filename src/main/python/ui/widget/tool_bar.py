@@ -153,11 +153,11 @@ class VolumeWidget(QtWidgets.QWidget):
                 # Volume à 0 : \ue04f (même icône que muet)
                 self.btn.setText("\ue04f")
             elif value < 33:
-                # Volume bas : \ue04d
-                self.btn.setText("\ue04d")
-            elif value < 66:
-                # Volume moyen : \ue04e
+                # Volume bas : \ue04e
                 self.btn.setText("\ue04e")
+            elif value < 66:
+                # Volume moyen : \ue04d
+                self.btn.setText("\ue04d")
             else:
                 # Volume élevé : \ue050
                 self.btn.setText("\ue050")
@@ -382,10 +382,12 @@ class TimeLabelWidget(QtWidgets.QLabel):
             f"<span style='color:#7f7f7f;font-weight:bold;font-size:13px;'>{self.total_time}</span>"
         )
 
-    def set_times(self, current_time, total_time):
+    def set_times(self, current_time = None, total_time = None):
         """Définit les temps actuels et totaux"""
-        self.current_time = current_time
-        self.total_time = total_time
+        if current_time:
+            self.current_time = current_time
+        if total_time:
+            self.total_time = total_time
         self.update_display()
 
 class PlaylistButtonWidget(QtWidgets.QPushButton):

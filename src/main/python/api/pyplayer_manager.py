@@ -23,7 +23,6 @@ class PlaylistManager:
         """
         Initialise le gestionnaire de playlists.
         """
-
         if data_dir:
             self.data_dir = Path(data_dir)
             self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -33,6 +32,9 @@ class PlaylistManager:
         # Fichiers de configuration
         self._config_file = self.data_dir / "manager_config.json"
         self._last_played_file = self.data_dir / "last_played.json"
+
+        # Le volume du player
+        self._volume: float = 0.45
 
         # Playlists chargées
         self._playlists: Dict[str, Playlist] = {}  # id -> Playlist
@@ -52,7 +54,6 @@ class PlaylistManager:
         #Initialisé si vide
         if self.playlist_count == 0:
             playlist = self.create_playlist(
-                source_path=Path(QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.StandardLocation.MoviesLocation)),
                 name="PLAYLIST",
             )
 
@@ -67,6 +68,15 @@ class PlaylistManager:
     # ============================================
     # PROPRIÉTÉS SIMPLES
     # ============================================
+
+    @property
+    def volume(self):
+        return self._volume
+
+    @volume.setter
+    def volume(self, value):
+        self._volume = value
+        self._save_config()
 
     @property
     def active_playlist(self) -> Optional[Playlist]:
@@ -745,6 +755,8 @@ class PlaylistManager:
                 if 'last_played_id' in config:
                     self._last_played_id = config['last_played_id']
                     self._active_playlist_id = self._last_played_id
+                if 'volume' in config:
+                    self._volume = config['volume']
 
                 logger.debug("Configuration chargée")
 
@@ -756,6 +768,7 @@ class PlaylistManager:
         try:
             config = {
                 'version': '1.0',
+                'volume': self.volume,
                 'last_updated': datetime.now().isoformat(),
                 'playlist_count': len(self._playlists),
                 'last_played_id': self._last_played_id,

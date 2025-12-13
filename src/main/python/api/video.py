@@ -189,7 +189,7 @@ class Video:
     def get_progress_bar(self, progress: float) -> str:
         """
         Style segments modernes.
-        Exemple : ▰▰▰▱▱ 60%
+        Exemple : ▰▰▰▰▰▰▱▱▱▱ 60%
         """
         progress = max(0.0, min(1.0, progress))
         full_blocks = round(progress * 10)

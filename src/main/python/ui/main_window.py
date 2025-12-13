@@ -20,7 +20,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.manager = PlaylistManager()
         self.icon_font = None
         self.setup_ui()
-        self.first_source_dir = QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.StandardLocation.MoviesLocation)
 
     def setup_ui(self):
         self.customize_self()
@@ -76,6 +75,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.menubar_widget.act_play.triggered.connect(self.toolbar_widget.player_controls.btn_play_pause.clicked.emit)
         self.menubar_widget.act_save_playlist_state.triggered.connect(self.dock_widget.btn_save_playlist.clicked.emit)
         self.menubar_widget.act_remove_playlist_state.triggered.connect(self.dock_widget.btn_remove_save.clicked.emit)
+        self.menubar_widget.act_full_screen_mode.triggered.connect(self.toggle_fullscreen)
+        self.shortcut_escape = QtGui.QShortcut(QtGui.QKeySequence("Escape"), self)
+        self.shortcut_escape.setContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
+        self.shortcut_escape.activated.connect(self.toggle_fullscreen)
 
         #DockWidget
         self.dock_widget.btn_add_to_playlist.clicked.connect(self.add_video_to_playlist)
@@ -94,6 +97,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.toolbar_widget.player_controls.btn_stop.clicked.connect(self.stop_playing)
         self.toolbar_widget.player_controls.btn_skipnext.clicked.connect(self.next_video)
         self.toolbar_widget.player_controls.btn_skipprevious.clicked.connect(self.previous_video)
+            #VolumeWidget
+        self.toolbar_widget.volume_widget.btn.clicked.connect(self.player_mute_if_clicked)
+        self.toolbar_widget.volume_widget.slider.valueChanged.connect(self.update_volume_change)
 
 
         #Player
@@ -105,6 +111,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.player_widget.video_player.mediaStatusChanged.connect(self.current_video_update_metadata)
         self.player_widget.video_player.playbackStateChanged.connect(self.on_playback_state_changed)
         self.player_widget.video_player.positionChanged.connect(self.save_video_on_position_changed)
+        self.player_widget.video_player.positionChanged.connect(self.update_time_label)
         pass
 
     ##################### END UI ######################
@@ -166,6 +173,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         video_list = self.active_playlist.add_video_from_dir_path(Path(dir_path))
         for video in video_list:
+            self.active_playlist.auto_save()
             self.dock_widget.add_video_to_playlist(video)
         return True
 
@@ -850,6 +858,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         player = self.player_widget.video_player
         self.current_video.update_metadata(duration = player.duration())
+        self.init_interface()
         print(self.current_video)
         pass
 
@@ -867,11 +876,17 @@ class MainWindow(QtWidgets.QMainWindow):
             width=width,
             height=height
         )
-        print(self.current_video)
+        item = self.dock_widget.find_video_item_by_name(self.current_video.name)
+        self.statusbar_widget.lbl_title.setText(
+            f"     {item.index} ➤  {self.current_video.name} ▌ Résolution : {self.current_video.resolution}")
         pass
 
     def save_video_on_position_changed(self, position):
         """Appelé par positionChanged du player."""
+        # Ignorer les premières positions au démarrage pour éviter les boucles
+        if position < 2000:  # 2 secondes
+            return
+
         player_widget = self.player_widget
         self.active_playlist.update_current_video_state(
             position=position,
@@ -890,6 +905,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.active_playlist.set_play_mode(self.toolbar_widget.player_controls.play_mode)
 
     def btn_play_mode_initialize(self):
+        self.toolbar_widget.volume_widget.slider.setValue(self.manager.volume * 100)
         self.toolbar_widget.player_controls.play_mode = self.active_playlist.play_mode
         self.toolbar_widget.player_controls.btn_play_mode_init()
         pass
@@ -945,7 +961,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def next_video_if_end(self,status):
         if status == QtMultimedia.QMediaPlayer.MediaStatus.EndOfMedia and self.active_playlist.get_next_video()[0]:
-            self.next_video()
+            self.play_video()
         pass
 
     def previous_video(self):
@@ -957,7 +973,14 @@ class MainWindow(QtWidgets.QMainWindow):
         video_url = QtCore.QUrl.fromLocalFile(str(self.current_video.file_path))
         player.setSource(video_url)
         player.play()
-        print(self.current_video.state.position)
+        self.init_interface()
+
+    def init_interface(self):
+        #init status bar
+        total_time = self.player_widget.position_to_hms(self.player_widget.video_player.duration())
+        self.toolbar_widget.time_label.set_times(total_time=total_time)
+        # init volume widget
+        self.toolbar_widget.volume_widget.update_button_icon()
         if 1000 < self.current_video.state.position < self.current_video.state.duration:
             self.player_widget.video_player.setPosition(self.current_video.state.position)
         self.dock_widget.set_current_video(self.current_video.name)
@@ -1013,5 +1036,111 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if hasattr(self, 'menubar_widget') and hasattr(self.menubar_widget, 'play_pause_update'):
             self.menubar_widget.play_pause_update(player_state)
+
+    def update_time_label(self,position):
+        current_time = self.player_widget.position_to_hms(position)
+        self.toolbar_widget.time_label.set_times(current_time=current_time)
+        pass
+
+    def player_mute_if_clicked(self):
+        self.player_widget.audio_output.setMuted(not self.current_video.state.muted)
+        if self.current_video.state.muted :
+            self.toolbar_widget.volume_widget.btn.setText("\ue04f")
+            return
+        self.toolbar_widget.volume_widget.update_button_icon()
+        pass
+
+    def update_volume_change(self,value):
+        self.player_widget.audio_output.setVolume(value/100)
+        self.manager.volume = value/100
+        pass
+
+    def toggle_fullscreen(self):
+        """
+        Bascule entre le mode plein écran et le mode normal.
+        Gère :
+            - Affichage/masquage des barres d'interface
+            - Masquage automatique du curseur après 3 secondes d'inactivité
+            - Installation/suppression propre du filtre d'événements
+            - Synchronisation de l'action du menu (icône, texte, état coché)
+        """
+        if self.isFullScreen():
+            # === SORTIE DU PLEIN ÉCRAN ===
+            self.showNormal()
+
+            # Restaurer l'interface
+            self.menubar_widget.setVisible(True)
+            self.toolbar_widget.setVisible(True)
+            self.dock_widget.setVisible(True)
+            self.statusbar_widget.setVisible(True)
+
+            # Réafficher le curseur normalement
+            self.unsetCursor()
+            self.player_widget.unsetCursor()
+
+            # Arrêter le timer de masquage du curseur
+            if hasattr(self, '_cursor_hide_timer'):
+                self._cursor_hide_timer.stop()
+
+            # Retirer le filtre d'événements (s'il était installé)
+            if getattr(self, '_fullscreen_eventfilter_installed', False):
+                self.player_widget.removeEventFilter(self)
+                self._fullscreen_eventfilter_installed = False
+
+            # Mettre à jour l'action du menu
+            self.menubar_widget.act_full_screen_mode.setChecked(False)
+
+        else:
+            # === ENTRÉE EN PLEIN ÉCRAN ===
+            self.showFullScreen()
+
+            # Cacher l'interface
+            self.menubar_widget.setVisible(False)
+            self.toolbar_widget.setVisible(False)
+            self.dock_widget.setVisible(False)
+            self.statusbar_widget.setVisible(False)
+
+            # Cacher immédiatement le curseur
+            self.setCursor(QtCore.Qt.CursorShape.BlankCursor)
+
+            # Créer le timer une seule fois (la première fois qu'on entre en plein écran)
+            if not hasattr(self, '_cursor_hide_timer'):
+                self._cursor_hide_timer = QtCore.QTimer(self)
+                self._cursor_hide_timer.setSingleShot(True)
+                self._cursor_hide_timer.timeout.connect(
+                    lambda: self.setCursor(QtCore.Qt.CursorShape.BlankCursor)
+                )
+
+            # Installer le filtre pour détecter les mouvements de souris
+            self.player_widget.installEventFilter(self)
+            self._fullscreen_eventfilter_installed = True
+
+            # Démarrer (ou redémarrer) le timer d'inactivité
+            self._cursor_hide_timer.start(3000)
+
+            # Mettre à jour l'action du menu
+            self.menubar_widget.act_full_screen_mode.setChecked(True)
+
+        # Mettre à jour l'icône et le texte de l'action (dans le MenuBar)
+        self.menubar_widget.toggle_full_screen_display(self.isFullScreen())
+
+    def eventFilter(self, obj, event):
+        """
+        Filtre les événements sur le PlayerWidget en mode plein écran.
+        Détecte les mouvements de souris pour réafficher temporairement le curseur.
+        """
+        if obj == self.player_widget and self.isFullScreen():
+            if event.type() == QtCore.QEvent.Type.MouseMove:
+                # Réafficher le curseur normal
+                self.unsetCursor()
+                self.player_widget.unsetCursor()
+
+                # Redémarrer le timer : le curseur se cachera à nouveau après 3s d'inactivité
+                if hasattr(self, '_cursor_hide_timer'):
+                    self._cursor_hide_timer.start(3000)
+
+            # Tu peux ajouter d'autres événements ici plus tard (ex: clic pour afficher une barre temporaire)
+
+        return super().eventFilter(obj, event)
 
     pass
