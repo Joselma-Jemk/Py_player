@@ -247,13 +247,13 @@ class MenuBarWidget(QtWidgets.QMenuBar):
 
         self.act_open_file = self.fileMenu.addAction(
             QtGui.QIcon(constant.ICON_OPEN_FILE) if constant.ICON_OPEN_FILE else "",
-            "Ouvrir un fichier"
+            "Ajouter un fichier à la playlist"
         )
         self.act_open_file.setShortcut("Ctrl+O")
 
         self.act_open_folder = self.fileMenu.addAction(
             QtGui.QIcon(constant.ICON_OPEN_FOLDER) if constant.ICON_OPEN_FOLDER else "",
-            "Ouvrir un dossier"
+            "Ajouter un dossier à la playlist"
         )
         self.act_open_folder.setShortcut("Ctrl+D")
 
