@@ -74,6 +74,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.menubar_widget.act_show_playlist.triggered.connect(self.toolbar_widget.btn_playlist.clicked.emit)
         self.menubar_widget.act_about.triggered.connect(self.about_pyplayer)
         self.menubar_widget.act_help.triggered.connect(self.show_help_dialog)
+        self.menubar_widget.act_stop.triggered.connect(self.toolbar_widget.player_controls.btn_stop.clicked.emit)
         self.menubar_widget.act_play.triggered.connect(self.toolbar_widget.player_controls.btn_play_pause.clicked.emit)
         self.menubar_widget.act_save_playlist_state.triggered.connect(self.dock_widget.btn_save_playlist.clicked.emit)
         self.menubar_widget.act_remove_playlist_state.triggered.connect(self.dock_widget.btn_remove_save.clicked.emit)
@@ -112,6 +113,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.player_widget.video_player.mediaStatusChanged.connect(self.next_video_if_end)
         self.player_widget.video_player.mediaStatusChanged.connect(self.current_video_update_metadata)
         self.player_widget.video_player.playbackStateChanged.connect(self.on_playback_state_changed)
+        self.player_widget.video_player.playbackStateChanged.connect(self.bloc_stop_btn)
+        self.player_widget.video_player.playbackStateChanged.connect(self.btn_play_pause_update)
         self.player_widget.video_player.positionChanged.connect(self.save_video_on_position_changed)
         self.player_widget.video_player.positionChanged.connect(self.update_time_label)
         pass
@@ -577,6 +580,9 @@ class MainWindow(QtWidgets.QMainWindow):
         return None
 
     def set_manually_active_playlist(self):
+        position = self.player_widget.video_player.position()
+        self.save_video_on_position_changed(position)
+        self.active_playlist.auto_save()
         self.manager.set_active_playlist_by_name(self.dock_widget.get_selected_playlist_name())
         self.initialize_playlist_state()
         pass
@@ -824,16 +830,22 @@ class MainWindow(QtWidgets.QMainWindow):
             message = f"Supprimer les {len(video_names)} vidéos suivantes ?\n\n{videos_list}\n... et {len(video_names) - 5} autres"
             title = "Confirmer la suppression multiple"
 
-        # Boîte de dialogue de confirmation
-        reply = QtWidgets.QMessageBox.question(
-            self,
-            title,
-            message,
-            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
-            QtWidgets.QMessageBox.StandardButton.No
-        )
+        # Créer une boîte de dialogue personnalisée avec les boutons Oui/Non
+        msg_box = QtWidgets.QMessageBox()
+        msg_box.setWindowTitle(title)
+        msg_box.setText(message)
+        msg_box.setIcon(QtWidgets.QMessageBox.Icon.Question)
 
-        if reply != QtWidgets.QMessageBox.StandardButton.Yes:
+        # Ajouter les boutons personnalisés
+        yes_button = msg_box.addButton("Oui", QtWidgets.QMessageBox.ButtonRole.YesRole)
+        no_button = msg_box.addButton("Non", QtWidgets.QMessageBox.ButtonRole.NoRole)
+        msg_box.setDefaultButton(no_button)
+
+        # Afficher la boîte de dialogue
+        msg_box.exec()
+
+        # Vérifier quel bouton a été cliqué
+        if msg_box.clickedButton() != yes_button:
             return  # Annuler la suppression
 
         # Supprimer chaque vidéo
@@ -953,7 +965,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def stop_playing(self):
         player = self.player_widget.video_player
-        player.stop()
+        if (player.playbackState() == QtMultimedia.QMediaPlayer.PlaybackState.PlayingState or
+                player.playbackState() == QtMultimedia.QMediaPlayer.PlaybackState.PausedState):
+            position = self.player_widget.video_player.position()
+            self.save_video_on_position_changed(position)
+            player.stop()
+            self.player_widget.slider.setValue(0)
         pass
 
     def next_video(self):
@@ -992,51 +1009,50 @@ class MainWindow(QtWidgets.QMainWindow):
             self.play_video()
         pass
 
-    def btn_play_pause_update(self, status=None):
+    def btn_play_pause_update(self, state=None):
         """
         Met à jour l'état du bouton play/pause en fonction du statut du média
         et de l'état de lecture du player.
 
         Args:
-            status: Statut du média ou état de lecture
+            state: Etat du média ou état de lecture
         """
         # Déterminer si on a reçu un status ou un player_state
-        player_state = None
+        btn = self.toolbar_widget.player_controls.btn_play_pause
+        act = self.menubar_widget.act_play
 
-        if status is None:
-            # Récupérer l'état actuel du média
-            media_status = self.player_widget.video_player.mediaStatus()
-            player_state = self.player_widget.video_player.playbackState()
+        # Vérifier si le bouton est déjà en mode "play" ou "pause"
+        btn_mode = "play" if btn.text() == "\ue037" else "pause"
 
-            # Si le média est terminé, forcer l'état "Stopped"
-            if media_status == QtMultimedia.QMediaPlayer.MediaStatus.EndOfMedia:
-                player_state = QtMultimedia.QMediaPlayer.PlaybackState.StoppedState
+        # Si aucun état n'est fourni, obtenir l'état actuel du player
+        if not state:
+            state = self.player_widget.video_player.playbackState()
 
-        elif isinstance(status, QtMultimedia.QMediaPlayer.MediaStatus):
-            # On a reçu un statut de média
-            media_status = status
-            player_state = self.player_widget.video_player.playbackState()
-
-            # Si le média est terminé, forcer l'état "Stopped"
-            if media_status == QtMultimedia.QMediaPlayer.MediaStatus.EndOfMedia:
-                player_state = QtMultimedia.QMediaPlayer.PlaybackState.StoppedState
-
-        elif isinstance(status, QtMultimedia.QMediaPlayer.PlaybackState):
-            # On a directement reçu un état de lecture
-            player_state = status
-
-        # Si aucun média n'est chargé, ne rien faire
-        if (self.player_widget.video_player.mediaStatus() ==
-                QtMultimedia.QMediaPlayer.MediaStatus.NoMedia):
-            return
-
-        # Mettre à jour les boutons avec l'état déterminé
-        if hasattr(self, 'toolbar_widget') and hasattr(self.toolbar_widget.player_controls,
-                                                       'btn_play_pause_update'):
-            self.toolbar_widget.player_controls.btn_play_pause_update(player_state)
-
-        if hasattr(self, 'menubar_widget') and hasattr(self.menubar_widget, 'play_pause_update'):
-            self.menubar_widget.play_pause_update(player_state)
+        # Gestion des différents états
+        if state == QtMultimedia.QMediaPlayer.PlaybackState.PlayingState:
+            # Si le player est en lecture, le bouton doit être en mode "pause"
+            if btn_mode == "play":
+                btn.setText("\ue034")  # Icône pause
+                act.setIcon(QtGui.QIcon(constant.ICON_PAUSE))
+                act.setToolTip("Pause")
+                act.setText("Pause")
+            # Pas besoin de changement si déjà en mode "pause"
+        elif state == QtMultimedia.QMediaPlayer.PlaybackState.PausedState:
+            # Si le player est en pause, le bouton doit être en mode "play"
+            if btn_mode == "pause":
+                btn.setText("\ue037")  # Icône play
+                act.setIcon(QtGui.QIcon(constant.ICON_PLAY))
+                act.setToolTip("Lire")
+                act.setText("Lire")
+        elif state == QtMultimedia.QMediaPlayer.PlaybackState.StoppedState:
+            # Si le player est arrêté, le bouton doit être en mode "play"
+            if btn_mode == "pause":
+                btn.setText("\ue037")  # Icône play
+                act.setIcon(QtGui.QIcon(constant.ICON_PLAY))
+                act.setToolTip("Lire")
+                act.setText("Lire")
+        # Mettre à jour le tooltip
+        self.toolbar_widget.player_controls.btn_play_pause_tooltip()
 
     def update_time_label(self,position):
         current_time = self.player_widget.position_to_hms(position)
@@ -1168,5 +1184,14 @@ class MainWindow(QtWidgets.QMainWindow):
             dialog.move(self.geometry().center() - dialog.rect().center())
 
         dialog.exec()
+
+    def bloc_stop_btn(self,state):
+        if state == QtMultimedia.QMediaPlayer.PlaybackState.StoppedState:
+            self.toolbar_widget.player_controls.btn_stop.setEnabled(False)
+            self.menubar_widget.act_stop.setEnabled(False)
+            return
+        self.toolbar_widget.player_controls.btn_stop.setEnabled(True)
+        self.menubar_widget.act_stop.setEnabled(True)
+        pass
 
     pass

@@ -341,43 +341,6 @@ class MenuBarWidget(QtWidgets.QMenuBar):
             self.helpMenu.setToolTip("Obtenir de l'aide")
         pass
 
-    def play_pause_update(self, player_state=None):
-        """
-        Met à jour l'action Play/Pause du menu en fonction de l'état du player.
-
-        Args:
-            player_state: État de lecture du player (PlayingState, PausedState, StoppedState)
-                         Si None, on bascule l'état actuel.
-        """
-        if player_state is None:
-            # Mode bascule: on inverse l'état actuel basé sur le texte
-            if self.act_play.text() == "Lire":
-                # Changer vers état "pause"
-                if constant.ICON_PAUSE:
-                    self.act_play.setIcon(QtGui.QIcon(constant.ICON_PAUSE))
-                self.act_play.setToolTip("Pause")
-                self.act_play.setText("Pause")
-            else:
-                # Changer vers état "play"
-                if constant.ICON_PLAY:
-                    self.act_play.setIcon(QtGui.QIcon(constant.ICON_PLAY))
-                self.act_play.setToolTip("Lire")
-                self.act_play.setText("Lire")
-        else:
-            # Mode avec état explicite
-            if player_state == QtMultimedia.QMediaPlayer.PlaybackState.PlayingState:
-                # Le player est en lecture -> afficher "Pause"
-                if constant.ICON_PAUSE:
-                    self.act_play.setIcon(QtGui.QIcon(constant.ICON_PAUSE))
-                self.act_play.setToolTip("Pause")
-                self.act_play.setText("Pause")
-            else:
-                # Le player est en pause/arrêt -> afficher "Lire"
-                if constant.ICON_PLAY:
-                    self.act_play.setIcon(QtGui.QIcon(constant.ICON_PLAY))
-                self.act_play.setToolTip("Lire")
-                self.act_play.setText("Lire")
-
     def toggle_full_screen_display(self, checked):
         """
         Bascule entre mode plein écran et mode normal

@@ -375,9 +375,7 @@ class PlayerControlsWidget(QtWidgets.QWidget):
         self.btn_skipnext.clicked.connect(lambda: self.set_active_button(self.btn_skipnext))
         self.btn_skipprevious.clicked.connect(lambda: self.set_active_button(self.btn_skipprevious))
         self.btn_play_mode.clicked.connect(lambda: self.set_active_button(self.btn_play_mode))
-
-        # Connecter aussi le bouton play_mode à sa méthode existante
-        self.btn_play_mode.clicked.connect(self.player_mode_update)
+        self.btn_play_pause.clicked.connect(self.btn_play_pause_tooltip)
 
     def set_active_button(self, button):
         """Définit le bouton actif et met à jour les styles"""
@@ -428,48 +426,17 @@ class PlayerControlsWidget(QtWidgets.QWidget):
     def play_mode(self, value):
         self._play_mode = value
 
-    def btn_play_pause_update(self, player_state=None):
-        """
-        Met à jour le bouton Play/Pause de la toolbar en fonction de l'état du player.
-        """
-        if player_state is None:
-            # Mode bascule: on inverse l'état actuel basé sur le texte
-            if self.btn_play_pause.text() == "\ue037":  # Icône play
-                # Changer vers état "pause"
-                self.btn_play_pause.setText("\ue034")  # Icône pause
-                self.btn_play_pause.setToolTip(
-                    "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
-                    "<b style='color:#4CAF50; font-size: 12px;'>Pause</b>"
-                    "</div>"
-                )
-            else:
-                # Changer vers état "play"
-                self.btn_play_pause.setText("\ue037")  # Icône play
-                self.btn_play_pause.setToolTip(
-                    "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
-                    "<b style='color:#4CAF50; font-size: 12px;'>Lire</b>"
-                    "</div>"
-                )
+    def btn_play_pause_tooltip(self):
+        if self.btn_play_pause.text() == "\ue037":  # Icône play
+            self.btn_play_pause.setToolTip(
+                "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
+                "<b style='color:#4CAF50; font-size: 12px;'>Pause</b>"
+                "</div>")
         else:
-            # Mode avec état explicite
-            if player_state == QtMultimedia.QMediaPlayer.PlaybackState.PlayingState:
-                # Le player est en lecture -> afficher icône pause
-                self.btn_play_pause.setText("\ue034")  # Icône pause
-                self.btn_play_pause.setToolTip(
-                    "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
-                    "<b style='color:#4CAF50; font-size: 12px;'>Pause</b>"
-                    "</div>"
-                )
-            else:
-                # Le player est en pause/arrêt -> afficher icône play
-                self.btn_play_pause.setText("\ue037")  # Icône play
-                self.btn_play_pause.setToolTip(
-                    "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
-                    "<b style='color:#4CAF50; font-size: 12px;'>Lire</b>"
-                    "</div>"
-                )
-
-        # Le bouton play/pause devient automatiquement actif quand on le met à jour
+            self.btn_play_pause.setToolTip(
+                "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
+                "<b style='color:#4CAF50; font-size: 12px;'>Lire</b>"
+                "</div>")
         self.set_active_button(self.btn_play_pause)
 
     def btn_play_mode_init(self):
