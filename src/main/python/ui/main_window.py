@@ -386,8 +386,8 @@ class MainWindow(QtWidgets.QMainWindow):
                     # Compter le nombre de fichiers vidéo dans le dossier
                     video_files = []
                     for ext in video_extensions:
-                        video_files.extend(list(path.rglob(f"*{ext}")))
-                        video_files.extend(list(path.rglob(f"*{ext.upper()}")))
+                        video_files.extend(list(path.glob(f"*{ext}")))
+                        video_files.extend(list(path.glob(f"*{ext.upper()}")))
 
                     # Filtrer pour ne garder que les fichiers (pas les dossiers)
                     video_files = [f for f in video_files if f.is_file()]
