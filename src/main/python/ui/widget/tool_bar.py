@@ -1,7 +1,5 @@
 from PySide6 import QtCore, QtGui, QtWidgets, QtMultimedia
 import src.main.python.ui.widget.constant as constant
-from pathlib import Path
-
 from src.main.python.api.playlist import PlayMode
 
 
@@ -52,6 +50,57 @@ class VolumeWidget(QtWidgets.QWidget):
                 border: none;
             }
         """)
+
+
+        # Style épuré du slider avec couleurs vertes directes
+        self.slider.setStyleSheet("""
+            /* SLIDER DE VOLUME - ULTRA SIMPLE */
+            QSlider::groove:horizontal {
+                background-color: rgba(70, 70, 70, 0.8);
+                border: 1px solid rgba(90, 90, 90, 0.6);
+                height: 3px;
+                border-radius: 0.2px;
+            }
+            
+            QSlider::sub-page:horizontal {
+                background-color: #4CAF50;
+                border: none;
+                height: 6px;
+                border-radius: 3px;
+            }
+            
+            QSlider::handle:horizontal {
+                background-color: white;
+                border: 2px solid #4CAF50;
+                width: 6px;
+                height: 6px;
+                margin: -4px 0;
+                border-radius: 4px;
+            }
+            
+            QSlider::add-page:horizontal {
+                background-color: rgba(80, 80, 80, 0.4);
+                border: none;
+                height: 6px;
+                border-radius: 3px;
+            }
+            
+            /* Désactivé (quand mute) */
+            QSlider::groove:horizontal:disabled {
+                background-color: rgba(70, 70, 70, 0.6);
+                border: 1px solid rgba(90, 90, 90, 0.4);
+            }
+            
+            QSlider::sub-page:horizontal:disabled {
+                background-color: rgba(76, 175, 80, 0.2);
+                border: 1px solid rgba(76, 175, 80, 0.1);
+            }
+            
+            QSlider::handle:horizontal:disabled {
+                background-color: rgba(180, 180, 180, 0.7);
+                border: 2px solid rgba(140, 140, 140, 0.5);
+            }
+            """)
 
         # Style du bouton - épuré avec deux états (mute/unmute)
         self.btn.setStyleSheet("""
@@ -188,10 +237,12 @@ class VolumeWidget(QtWidgets.QWidget):
         self.update_button_icon()
 
 class PlayerControlsWidget(QtWidgets.QWidget):
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.icon_font = None
         self._play_mode = PlayMode.NORMAL
+        self.last_pressed_button = None  # Nouveau: garder trace du dernier bouton pressé
         self.setup_ui()
 
     def setup_ui(self):
@@ -199,6 +250,7 @@ class PlayerControlsWidget(QtWidgets.QWidget):
         self.create_widgets()
         self.modify_widgets()
         self.create_layouts()
+        self.setup_connections()  # Nouvelle méthode pour les connexions
 
     def icon_font_initialize(self, size=14):
         dir = constant.find_path("material-symbols-outlined.ttf")
@@ -216,62 +268,155 @@ class PlayerControlsWidget(QtWidgets.QWidget):
                          self.btn_play_mode]
 
     def modify_widgets(self):
-        # Stylesheet pour centrer le texte et mettre en blanc
-        buttons_style = """
+        # Stylesheet de base pour tous les boutons
+        base_style = """
             QPushButton {
-                /* Centre le texte horizontalement et verticalement */
-                text-align: center;
-                padding: 0;
-                margin: 0;
-
-                /* Couleur du texte */
-                color: white;
-
-                /* Style du bouton */
-                background-color: rgba(60, 60, 65, 0.8);
-                border: 1px solid rgba(80, 80, 85, 0.6);
-                border-radius: 4px;
-
-                /* Assure que tout le texte est visible */
+                background-color: rgba(50, 50, 55, 0.9);
+                border: 1px solid rgba(80, 80, 85, 0.7);
+                border-radius: 6px;
+                color: #E0E0E0;
+                font-size: 14px;
+                padding: 0px;
+                margin: 0px;
                 qproperty-alignment: AlignCenter;
+                min-width: 30px;
+                min-height: 30px;
             }
 
             QPushButton:hover {
-                background-color: rgba(70, 70, 75, 0.9);
-                border: 1px solid rgba(100, 100, 105, 0.8);
-                color: #f0f0f0; /* Blanc légèrement plus lumineux au survol */
+                background-color: rgba(76, 175, 80, 0.25);
+                border: 1px solid #4CAF50;
+                color: #4CAF50;
             }
 
             QPushButton:pressed {
-                background-color: rgba(50, 50, 55, 0.9);
-                border: 1px solid rgba(60, 60, 65, 0.8);
+                background-color: rgba(76, 175, 80, 0.35);
+                border: 1px solid #2E7D32;
+                color: #2E7D32;
             }
 
             QPushButton:disabled {
-                color: #888;
+                color: #666666;
                 background-color: rgba(50, 50, 55, 0.5);
-                border: 1px solid rgba(60, 60, 65, 0.3);
+                border: 1px solid rgba(80, 80, 85, 0.3);
             }
         """
 
-        # Appliquer le style à tous les boutons
+        # Style spécial pour le bouton actif (dernier pressé)
+        active_style = """
+            QPushButton {
+                background-color: rgba(50, 50, 55, 0.9);
+                border: 1px solid #4CAF50;
+                color: #4CAF50;
+                border-radius: 6px;
+                font-size: 14px;
+                padding: 0px;
+                margin: 0px;
+                qproperty-alignment: AlignCenter;
+                min-width: 30px;
+                min-height: 30px;
+            }
+
+            QPushButton:hover {
+                background-color: rgba(76, 175, 80, 0.35);
+                border: 1px solid #66BB6A;
+                color: #66BB6A;
+            }
+
+            QPushButton:pressed {
+                background-color: rgba(76, 175, 80, 0.45);
+                border: 1px solid #2E7D32;
+                color: #2E7D32;
+            }
+        """
+
+        # Appliquer le style de base à tous les boutons
         for btn in self.btn_list:
             btn.setFont(self.icon_font)
             btn.setFixedSize(30, 30)
-            btn.setStyleSheet(buttons_style)
-            # Assurer le centrage via les propriétés Qt
-            btn.setProperty("alignment", QtCore.Qt.AlignmentFlag.AlignCenter)
+            btn.setStyleSheet(base_style)
+            # Stocker le style dans la propriété de l'objet
+            btn.base_style = base_style
+            btn.active_style = active_style
 
-        # Tooltips (inchangés)
-        self.btn_play_pause.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Lire</b>")
-        self.btn_stop.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Stop</b>")
-        self.btn_skipnext.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Lire le suivant</b>")
-        self.btn_skipprevious.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Lire le précédent</b>")
+        # Style initial pour le bouton play (comme actif par défaut)
+        self.last_pressed_button = self.btn_play_pause
+        self.btn_play_pause.setStyleSheet(active_style)
+
+        # Tooltips avec style vert
+        self.btn_play_pause.setToolTip(
+            "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
+            "<b style='color:#4CAF50; font-size: 12px;'>Lire</b>"
+            "</div>"
+        )
+        self.btn_stop.setToolTip(
+            "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
+            "<b style='color:#4CAF50; font-size: 12px;'>Stop</b>"
+            "</div>"
+        )
+        self.btn_skipnext.setToolTip(
+            "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
+            "<b style='color:#4CAF50; font-size: 12px;'>Lire le suivant</b>"
+            "</div>"
+        )
+        self.btn_skipprevious.setToolTip(
+            "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
+            "<b style='color:#4CAF50; font-size: 12px;'>Lire le précédent</b>"
+            "</div>"
+        )
         self.play_mode_tooltip()
         self.btn_play_mode_init()
 
+    def setup_connections(self):
+        """Configure les connexions pour gérer le bouton actif"""
+        # Connecter tous les boutons à la méthode qui gère l'état actif
+        self.btn_play_pause.clicked.connect(lambda: self.set_active_button(self.btn_play_pause))
+        self.btn_stop.clicked.connect(lambda: self.set_active_button(self.btn_stop))
+        self.btn_skipnext.clicked.connect(lambda: self.set_active_button(self.btn_skipnext))
+        self.btn_skipprevious.clicked.connect(lambda: self.set_active_button(self.btn_skipprevious))
+        self.btn_play_mode.clicked.connect(lambda: self.set_active_button(self.btn_play_mode))
+
+        # Connecter aussi le bouton play_mode à sa méthode existante
+        self.btn_play_mode.clicked.connect(self.player_mode_update)
+
+    def set_active_button(self, button):
+        """Définit le bouton actif et met à jour les styles"""
+        # Réinitialiser le style du précédent bouton actif
+        if self.last_pressed_button:
+            self.last_pressed_button.setStyleSheet(self.last_pressed_button.base_style)
+
+        # Mettre le nouveau bouton en style actif
+        button.setStyleSheet(button.active_style)
+        self.last_pressed_button = button
+
+        # Animation visuelle (optionnelle)
+        self.animate_button_press(button)
+
+    def animate_button_press(self, button):
+        """Animation visuelle pour le bouton pressé"""
+        # Créer une animation de pulse
+        original_size = button.size()
+
+        # Animation de réduction/agrandissement
+        animation = QtCore.QPropertyAnimation(button, b"geometry")
+        animation.setDuration(150)
+        animation.setStartValue(button.geometry())
+
+        # Réduire légèrement
+        small_rect = QtCore.QRect(
+            button.x() + 1,
+            button.y() + 1,
+            original_size.width() - 2,
+            original_size.height() - 2
+        )
+        animation.setKeyValueAt(0.5, small_rect)
+        animation.setEndValue(button.geometry())
+        animation.setEasingCurve(QtCore.QEasingCurve.Type.OutCubic)
+        animation.start()
+
     def create_layouts(self):
         self.lyt = QtWidgets.QHBoxLayout(self)
+        self.lyt.setSpacing(8)
         for btn in self.btn_list:
             self.lyt.addWidget(btn)
 
@@ -286,31 +431,46 @@ class PlayerControlsWidget(QtWidgets.QWidget):
     def btn_play_pause_update(self, player_state=None):
         """
         Met à jour le bouton Play/Pause de la toolbar en fonction de l'état du player.
-
-        Args:
-            player_state: État de lecture du player (PlayingState, PausedState, StoppedState)
-                         Si None, on bascule l'état actuel.
         """
         if player_state is None:
             # Mode bascule: on inverse l'état actuel basé sur le texte
             if self.btn_play_pause.text() == "\ue037":  # Icône play
                 # Changer vers état "pause"
                 self.btn_play_pause.setText("\ue034")  # Icône pause
-                self.btn_play_pause.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Pause</b>")
+                self.btn_play_pause.setToolTip(
+                    "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
+                    "<b style='color:#4CAF50; font-size: 12px;'>Pause</b>"
+                    "</div>"
+                )
             else:
                 # Changer vers état "play"
                 self.btn_play_pause.setText("\ue037")  # Icône play
-                self.btn_play_pause.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Lire</b>")
+                self.btn_play_pause.setToolTip(
+                    "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
+                    "<b style='color:#4CAF50; font-size: 12px;'>Lire</b>"
+                    "</div>"
+                )
         else:
             # Mode avec état explicite
             if player_state == QtMultimedia.QMediaPlayer.PlaybackState.PlayingState:
                 # Le player est en lecture -> afficher icône pause
                 self.btn_play_pause.setText("\ue034")  # Icône pause
-                self.btn_play_pause.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Pause</b>")
+                self.btn_play_pause.setToolTip(
+                    "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
+                    "<b style='color:#4CAF50; font-size: 12px;'>Pause</b>"
+                    "</div>"
+                )
             else:
                 # Le player est en pause/arrêt -> afficher icône play
                 self.btn_play_pause.setText("\ue037")  # Icône play
-                self.btn_play_pause.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Lire</b>")
+                self.btn_play_pause.setToolTip(
+                    "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
+                    "<b style='color:#4CAF50; font-size: 12px;'>Lire</b>"
+                    "</div>"
+                )
+
+        # Le bouton play/pause devient automatiquement actif quand on le met à jour
+        self.set_active_button(self.btn_play_pause)
 
     def btn_play_mode_init(self):
         if self.play_mode == PlayMode.NORMAL:
@@ -336,26 +496,34 @@ class PlayerControlsWidget(QtWidgets.QWidget):
 
     def play_mode_tooltip(self):
         if self.btn_play_mode.text() == "\ue040":
-            self.btn_play_mode.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Lecture de la playlist</b>"
+            self.btn_play_mode.setToolTip(
+                "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
+                "<b style='color:#4CAF50; font-size: 12px;'>Lecture de la playlist</b>"
+                "</div>"
             )
             self.play_mode = PlayMode.LOOP_ALL
 
         elif self.btn_play_mode.text() == "\ue041":
             self.btn_play_mode.setToolTip(
-                "<b style='color:#f2f2f7;font-weight:bold;'>Lecture en boucle du fichier actuelle</b>"
+                "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
+                "<b style='color:#4CAF50; font-size: 12px;'>Lecture en boucle du fichier actuel</b>"
+                "</div>"
             )
             self.play_mode = PlayMode.LOOP_ONE
         elif self.btn_play_mode.text() == "\ue14b":
             self.btn_play_mode.setToolTip(
-                "<b style='color:#f2f2f7;font-weight:bold;'>Lire une seul fois le fichier actuelle</b>"
+                "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
+                "<b style='color:#4CAF50; font-size: 12px;'>Lire une seule fois le fichier actuel</b>"
+                "</div>"
             )
             self.play_mode = PlayMode.NORMAL
         else:
             self.btn_play_mode.setToolTip(
-                "<b style='color:#f2f2f7;font-weight:bold;'>Lecture aléatoire de la playlist en boucle</b>"
+                "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
+                "<b style='color:#4CAF50; font-size: 12px;'>Lecture aléatoire de la playlist en boucle</b>"
+                "</div>"
             )
             self.play_mode = PlayMode.SHUFFLE
-        pass
 
 class TimeLabelWidget(QtWidgets.QLabel):
     def __init__(self, parent=None):
@@ -378,7 +546,7 @@ class TimeLabelWidget(QtWidgets.QLabel):
         """Met à jour l'affichage avec le format demandé"""
         self.setText(
             f"<span style='color:#eaeaea;font-weight:bold;font-size:13px;'>{self.current_time}</span>"
-            f"<span style='color:#2196F3;font-weight:bold;font-size:15px;'> | </span>"
+            f"<span style='color:#4CAF50;font-weight:bold;font-size:15px;'> | </span>"
             f"<span style='color:#7f7f7f;font-weight:bold;font-size:13px;'>{self.total_time}</span>"
         )
 
@@ -395,41 +563,26 @@ class PlaylistButtonWidget(QtWidgets.QPushButton):
         super().__init__("\ue0ee", parent)
         self.setFixedSize(40, 40)
         buttons_style = """
-           QPushButton {
-               /* Centre le texte horizontalement et verticalement */
-               text-align: center;
-               padding: 0;
-               margin: 0;
+            QPushButton {
+                background-color: transparent;
+                border: 1px solid #4CAF50;
+                border-radius: 4px;
+                color: #4CAF50;
+                font-size: 16px;
+                padding: 8px;
+            }
 
-               /* Couleur du texte */
-               color: white;
+            QPushButton:hover {
+                background-color: #4CAF50;
+                color: white;
+            }
 
-               /* Style du bouton */
-               background-color: rgba(60, 60, 65, 0.8);
-               border: 1px solid rgba(80, 80, 85, 0.6);
-               border-radius: 4px;
-
-               /* Assure que tout le texte est visible */
-               qproperty-alignment: AlignCenter;
-           }
-
-           QPushButton:hover {
-               background-color: rgba(70, 70, 75, 0.9);
-               border: 1px solid rgba(100, 100, 105, 0.8);
-               color: #f0f0f0; /* Blanc légèrement plus lumineux au survol */
-           }
-
-           QPushButton:pressed {
-               background-color: rgba(50, 50, 55, 0.9);
-               border: 1px solid rgba(60, 60, 65, 0.8);
-           }
-
-           QPushButton:disabled {
-               color: #888;
-               background-color: rgba(50, 50, 55, 0.5);
-               border: 1px solid rgba(60, 60, 65, 0.3);
-           }
-            """
+            QPushButton:pressed {
+                background-color: #2E7D32;
+                border-color: #2E7D32;
+                color: white;
+            }
+        """
         self.setStyleSheet(buttons_style)
         self.setToolTip("<b style='color:#f2f2f7;font-weight:bold;'>Masquer le panneau des playlists</b>")
 

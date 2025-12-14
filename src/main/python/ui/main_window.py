@@ -6,7 +6,7 @@ from src.main.python.api.playlist import Playlist
 from src.main.python.api.pyplayer_manager import PlaylistManager
 from src.main.python.api.video import Video
 from src.main.python.ui.widget.dock_widget import DockWidget, DeletePlaylistDialog, VideoListItem
-from src.main.python.ui.widget.menu_bar import MenuBarWidget
+from src.main.python.ui.widget.menu_bar import MenuBarWidget, HelpDialog
 from src.main.python.ui.widget.player import PlayerWidget
 from src.main.python.ui.widget.staturbar_widget import StatusBar
 from src.main.python.ui.widget.tool_bar import ToolBarWidget
@@ -15,6 +15,7 @@ from src.main.python.ui.widget.tool_bar import ToolBarWidget
 os.environ["QT_MEDIA_BACKEND"]="ffmpeg"
 
 class MainWindow(QtWidgets.QMainWindow):
+
     def __init__(self):
         super().__init__()
         self.manager = PlaylistManager()
@@ -72,6 +73,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.menubar_widget.act_open_folder.triggered.connect(self.choose_folder)
         self.menubar_widget.act_show_playlist.triggered.connect(self.toolbar_widget.btn_playlist.clicked.emit)
         self.menubar_widget.act_about.triggered.connect(self.about_pyplayer)
+        self.menubar_widget.act_help.triggered.connect(self.show_help_dialog)
         self.menubar_widget.act_play.triggered.connect(self.toolbar_widget.player_controls.btn_play_pause.clicked.emit)
         self.menubar_widget.act_save_playlist_state.triggered.connect(self.dock_widget.btn_save_playlist.clicked.emit)
         self.menubar_widget.act_remove_playlist_state.triggered.connect(self.dock_widget.btn_remove_save.clicked.emit)
@@ -202,7 +204,7 @@ class MainWindow(QtWidgets.QMainWindow):
             }}
             QLabel {{
                 color: {constant.PRINCIPAL_TEXT_COLOR};
-                background-color: transparent;
+                background-color: transself;
             }}
             QLineEdit, QTextEdit {{
                 background-color: {constant.SECONDARY_COLOR};
@@ -258,7 +260,7 @@ class MainWindow(QtWidgets.QMainWindow):
             QLabel {{
                 color: {constant.ACCENT_COLOR};
                 font-size: 12px;
-                background-color: transparent;
+                background-color: transself;
             }}
         """)
         error_label.setVisible(False)
@@ -269,7 +271,7 @@ class MainWindow(QtWidgets.QMainWindow):
             QLabel {{
                 color: {constant.ACCENT_COLOR};
                 font-size: 12px;
-                background-color: transparent;
+                background-color: transself;
             }}
         """)
         name_error_label.setVisible(False)
@@ -279,11 +281,11 @@ class MainWindow(QtWidgets.QMainWindow):
         btn_save.setStyleSheet(f"""
             QPushButton {{
                 background-color: {constant.THIRD_COLOR};
-                color: {constant.OK_ONE_COLOR};
+                color: #4CAF50;
                 font-weight: bold;
             }}
             QPushButton:hover {{
-                background-color: {constant.OK_ONE_COLOR};
+                background-color: #4CAF50;
                 color: {constant.PRINCIPAL_TEXT_COLOR};
             }}
             QPushButton:disabled {{
@@ -407,7 +409,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         QLabel {{
                             color: #4CAF50;  /* Vert pour succès */
                             font-size: 12px;
-                            background-color: transparent;
+                            background-color: transself;
                         }}
                     """)
                     error_label.setVisible(True)
@@ -487,7 +489,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     QLabel {{
                         color: #4CAF50;
                         font-size: 12px;
-                        background-color: transparent;
+                        background-color: transself;
                     }}
                 """)
             elif error_label.text():
@@ -495,7 +497,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     QLabel {{
                         color: {constant.ACCENT_COLOR};
                         font-size: 12px;
-                        background-color: transparent;
+                        background-color: transself;
                     }}
                 """)
 
@@ -648,7 +650,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         icon_label.setStyleSheet("""
                             QLabel {
                                 border: 1px solid #3a3a3a;
-                                background-color: transparent;
+                                background-color: transself;
                             }
                         """)
                     else:
@@ -859,7 +861,6 @@ class MainWindow(QtWidgets.QMainWindow):
         player = self.player_widget.video_player
         self.current_video.update_metadata(duration = player.duration())
         self.init_interface()
-        print(self.current_video)
         pass
 
     def on_playback_state_changed(self, state):
@@ -1142,5 +1143,30 @@ class MainWindow(QtWidgets.QMainWindow):
             # Tu peux ajouter d'autres événements ici plus tard (ex: clic pour afficher une barre temporaire)
 
         return super().eventFilter(obj, event)
+
+    def show_help_dialog(self):
+        """
+        Affiche la boîte de dialogue d'aide interactive.
+
+        """
+        dialog = HelpDialog(self)
+
+        # Animation d'apparition
+        dialog.setWindowOpacity(0)
+        dialog.show()
+
+        # Animation fade in
+        fade_animation = QtCore.QPropertyAnimation(dialog, b"windowOpacity")
+        fade_animation.setDuration(300)
+        fade_animation.setStartValue(0)
+        fade_animation.setEndValue(1)
+        fade_animation.setEasingCurve(QtCore.QEasingCurve.Type.OutCubic)
+        fade_animation.start()
+
+        # Position au centre
+        if self:
+            dialog.move(self.geometry().center() - dialog.rect().center())
+
+        dialog.exec()
 
     pass

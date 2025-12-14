@@ -16,41 +16,22 @@ class CustomSlider(QtWidgets.QSlider):
     def setup_ui(self):
         """Configure l'apparence du slider"""
         self.setStyleSheet("""
-            QSlider::groove:horizontal {
-                background: #e0e0e0;
-                height: 4px;
-                border-radius: 2px;
-                margin: 2px 0;
-            }
-
-            QSlider::handle:horizontal {
-                background: #f0f00f;
-                width: 14px;
-                height: 14px;
-                border-radius: 7px;
-                margin: -5px 0;
-            }
-
-            QSlider::handle:horizontal:hover {
-                background: #ffff00;
-                width: 16px;
-                height: 16px;
-                border-radius: 8px;
-                margin: -6px 0;
-            }
-
-            QSlider::sub-page:horizontal {
-                background: #2196F3;
-                margin: 2px 0;
-                border-radius: 2px;
-            }
-
-            QSlider::add-page:horizontal {
-                background: #e0e0e0;
-                margin: 2px 0;
-                border-radius: 2px;
-            }
-        """)
+              QSlider::groove:horizontal {
+                   background: #e0e0e0; /* Fond gris clair */
+                   height: 4px; /* Hauteur réduite pour la groove */
+                   border-radius: 2px; /* Coins arrondis */
+                   margin: 2px 0; /* Marge minimale */}
+              QSlider::handle:horizontal {
+                   background: #f0f00f; /* Bleu clair pour le handle */
+                   width: 7px; /* Largeur du handle, dépassant la groove */
+                   height: 7px; /* Hauteur égale pour un cercle */
+                   border-radius: 7px; /* Rayon maximal pour un cercle parfait */
+                   margin: -2px 0; /* Dépassement vers le haut et le bas */}            
+              QSlider::sub-page:horizontal {
+                   background: #2196F3;
+                   margin: 2px 0;
+                   border-radius: 2px; /* Coins arrondis */}
+                   """)
 
     def mousePressEvent(self, event: QtGui.QMouseEvent):
         """Gère le clic sur le slider pour aller directement à la position"""

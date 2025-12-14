@@ -327,7 +327,7 @@ class DockWidget(QtWidgets.QDockWidget):
                 font-size: 12px;
                 font-family: 'Segoe UI', Arial, sans-serif;
                 outline: none;
-                padding: 2px;
+                padding: 4px;
             }
 
             QListWidget::item {
@@ -462,7 +462,7 @@ class DockWidget(QtWidgets.QDockWidget):
         buttons_config = [
             (self.btn_add_to_playlist, "#4CAF50", "Ajouter un fichier", "#4CAF50", "rgba(76, 175, 80, 0.1)"),
             (self.btn_remove_to_playlist, "#FF5252", "Retirer sélection", "#FF5252", "rgba(255, 82, 82, 0.1)"),
-            (self.btn_save_playlist, "#2196F3", "Créer une nouvelle playlist", "#2196F3", "rgba(33, 150, 243, 0.1)"),
+            (self.btn_save_playlist, "#4CAF50", "Créer une nouvelle playlist", "#4CAF50", "rgba(33, 150, 243, 0.1)"),
             (self.btn_remove_save, "#FF5252", "Supprimer une playlist", "#FF5252", "rgba(255, 82, 82, 0.1)")
         ]
         for btn, color, tooltip, hover_color, hover_bg in buttons_config:

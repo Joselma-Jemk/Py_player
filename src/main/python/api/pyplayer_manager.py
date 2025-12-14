@@ -4,7 +4,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
-from PySide6 import QtCore
 
 from src.main.python.api.playlist import Playlist
 from src.main.python.ui.widget.constant import pyplayer_directory

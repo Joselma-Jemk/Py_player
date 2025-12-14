@@ -9,17 +9,25 @@
 ### Structure du projet
 ```
 src/main/python/
-├── api/                    # Logique métier
-│   ├── video.py           # Objet vidéo avec état
-│   ├── playlist.py        # Gestion des playlists
-│   └── pyplayer_manager.py # Manager central
-├── ui/widget/             # Composants d'interface
-│   ├── menu_bar.py        # Barre de menu
-│   ├── dock_widget.py     # Panneau playlist
-│   ├── player.py          # Lecteur vidéo
-│   ├── tool_bar.py        # Barre d'outils
-│   └── staturbar_widget.py # Barre d'état
-└── constant.py            # Constantes et ressources
+├── api/                     # Logique métier
+│   ├── video.py             # Objet vidéo et état
+│   ├── playlist.py          # Gestion des playlists
+│   ├── pyplayer_manager.py  # Manager central
+│   ├── test_api.py          # Tests API
+│   └── generate.py          # Générateur / utilitaire
+│
+├── ui/                      # Interface utilisateur
+│   ├── main_window.py       # Fenêtre principale
+│   └── widget/              # Composants UI
+│       ├── menu_bar.py      # Barre de menu
+│       ├── tool_bar.py      # Barre d’outils
+│       ├── dock_widget.py   # Panneau playlist
+│       ├── player.py        # Lecteur vidéo
+│       ├── staturbar_widget.py # Barre d’état
+│       └── constant.py      # Constantes UI
+│
+└──__init__.py
+
 ```
 
 ### Technologies utilisées
@@ -146,15 +154,6 @@ Chaque vidéo conserve son état (position, volume, muet) entre les sessions. L'
 ```bash
 pip install PySide6
 # FFmpeg doit être installé séparément
-```
-
-### Structure recommandée
-```bash
-pyplayer/
-├── src/main/python/     # Code source
-├── resources/          # Icônes, polices
-├── requirements.txt    # Dépendances
-└── README.md          # Documentation
 ```
 
 ### Points d'extension
