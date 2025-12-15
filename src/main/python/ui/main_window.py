@@ -581,8 +581,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def set_manually_active_playlist(self):
         position = self.player_widget.video_player.position()
-        self.save_video_on_position_changed(position)
-        self.active_playlist.auto_save()
+        if position:
+            self.save_video_on_position_changed(position)
+            self.active_playlist.auto_save()
         self.manager.set_active_playlist_by_name(self.dock_widget.get_selected_playlist_name())
         self.initialize_playlist_state()
         pass
@@ -598,6 +599,9 @@ class MainWindow(QtWidgets.QMainWindow):
         pass
 
     def delete_playlist(self):
+        player = self.player_widget.video_player
+        if player.playbackState() == QtMultimedia.QMediaPlayer.PlaybackState.PlayingState:
+            self.stop_playing()
         selected = self.confirm_delete_playlist_multiple(self.manager.playlist_names.values())
         if selected:
             for playlist_name in selected :
@@ -847,12 +851,21 @@ class MainWindow(QtWidgets.QMainWindow):
         # Vérifier quel bouton a été cliqué
         if msg_box.clickedButton() != yes_button:
             return  # Annuler la suppression
-
         # Supprimer chaque vidéo
         for video_name in video_names:
             found_videos = self.active_playlist.find_videos_by_name(video_name, case_sensitive=True)
             if found_videos:
                 video = found_videos[0]
+
+                # Vérifier si la vidéo est en cours de lecture
+                if video.name == self.current_video.name:
+                    QtWidgets.QMessageBox.warning(
+                        self,
+                        "Opération impossible",
+                        "Cette vidéo est en cours de lecture. Impossible de la supprimer."
+                    )
+                    return  # Arrêter l'exécution
+
                 # Supprimer de la playlist
                 self.active_playlist.remove_video(video)
                 # Supprimer de l'interface
