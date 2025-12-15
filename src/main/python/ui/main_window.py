@@ -1,6 +1,5 @@
 from pathlib import Path
 import os
-from PySide6 import QtCore, QtGui, QtWidgets, QtMultimedia
 import src.main.python.ui.widget.constant as constant
 from src.main.python.api.playlist import Playlist
 from src.main.python.api.pyplayer_manager import PlaylistManager
@@ -10,10 +9,10 @@ from src.main.python.ui.widget.menu_bar import MenuBarWidget, HelpDialog
 from src.main.python.ui.widget.player import PlayerWidget
 from src.main.python.ui.widget.staturbar_widget import StatusBar
 from src.main.python.ui.widget.tool_bar import ToolBarWidget
+from PySide6 import QtCore, QtGui, QtWidgets, QtMultimedia
 
-# Forcé ffmpeg
-os.environ["QT_MEDIA_BACKEND"]="ffmpeg"
 
+os.environ["QT_MEDIA_BACKEND"] = "ffmpeg"
 class MainWindow(QtWidgets.QMainWindow):
 
     def __init__(self):

@@ -1,2 +1,4 @@
 .idea/
-.dist/
+.dist/main.dist/
+.dist/main.build/
+.Setup/

@@ -2,9 +2,11 @@
 Py player constante file
 """
 import json
+import sys
 from pathlib import Path
 from typing import Optional, Union, List
 import os
+import imageio_ffmpeg
 
 
 def find_path(
@@ -328,18 +330,3 @@ VIDEO_EXTENSIONS = {
 SUPPORTED_AUDIO_FORMATS = {".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a"}
 
 SEPARATOR_ICON = "⮞"  # Icône entre nom et progression (modifiable)
-
-# Fonction utilitaire pour changer de thème
-def set_theme(theme: str):
-    """Change le thème et met à jour les préférences."""
-    if theme not in ["light", "dark"]:
-        raise ValueError("Le thème doit être 'light' ou 'dark'")
-
-    preferences["theme"] = theme
-    # Ici, tu pourrais sauvegarder les préférences dans un fichier
-
-def refresh_icons():
-    """Rafraîchit toutes les icônes selon le thème actuel (pour le hot reload)."""
-    # Cette fonction serait appelée quand on change de thème
-    # Pour l'instant, les icônes sont chargées au démarrage seulement
-    pass
