@@ -6,7 +6,8 @@ from typing import Dict, List, Optional, Any
 
 
 from src.main.python.api.playlist import Playlist
-from src.main.python.ui.widget.constant import pyplayer_directory
+from src.main.python.api.constant import pyplayer_directory
+from src.main.python.api.io_utils import write_json_atomic
 
 logger = logging.getLogger(__name__)
 
@@ -774,8 +775,7 @@ class PlaylistManager:
                 'active_playlist_id': self._active_playlist_id
             }
 
-            with open(self._config_file, 'w', encoding='utf-8') as f:
-                json.dump(config, f, indent=2, ensure_ascii=False)
+            write_json_atomic(self._config_file, config, indent=2, ensure_ascii=False)
 
             logger.debug("Configuration sauvegardée")
 
@@ -790,8 +790,7 @@ class PlaylistManager:
                 'timestamp': datetime.now().isoformat()
             }
 
-            with open(self._last_played_file, 'w', encoding='utf-8') as f:
-                json.dump(last_played, f, indent=2, ensure_ascii=False)
+            write_json_atomic(self._last_played_file, last_played, indent=2, ensure_ascii=False)
 
             logger.debug("Dernière playlist sauvegardée")
 

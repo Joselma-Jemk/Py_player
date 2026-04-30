@@ -1,6 +1,6 @@
 from PySide6 import QtCore, QtGui, QtWidgets, QtMultimediaWidgets, QtMultimedia
 from pathlib import Path
-import src.main.python.ui.widget.constant as constant
+import src.main.python.api.constant as constant
 
 
 class CustomSlider(QtWidgets.QSlider):

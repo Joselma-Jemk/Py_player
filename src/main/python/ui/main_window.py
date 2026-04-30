@@ -1,6 +1,6 @@
 from pathlib import Path
 import os
-import src.main.python.ui.widget.constant as constant
+import src.main.python.api.constant as constant
 from src.main.python.api.playlist import Playlist
 from src.main.python.api.pyplayer_manager import PlaylistManager
 from src.main.python.api.video import Video

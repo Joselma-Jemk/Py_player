@@ -1,5 +1,5 @@
 from PySide6 import QtCore, QtGui, QtWidgets, QtMultimedia
-import src.main.python.ui.widget.constant as constant
+import src.main.python.api.constant as constant
 from src.main.python.api.playlist import PlayMode
 
 

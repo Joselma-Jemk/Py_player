@@ -9,7 +9,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from src.main.python.api.video import Video
-from src.main.python.ui.widget.constant import VIDEO_EXTENSIONS
+from src.main.python.api.constant import VIDEO_EXTENSIONS
+from src.main.python.api.io_utils import write_json_atomic
 
 # Configurer le logging
 logger = logging.getLogger(__name__)
@@ -1668,9 +1669,7 @@ class Playlist:
 
             # Sérialiser et sauvegarder
             data = self.to_dict()
-
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            write_json_atomic(file_path, data, indent=2, ensure_ascii=False)
 
             logger.info(f"Playlist sauvegardée: {file_path} ({len(self.videos)} vidéos)")
 

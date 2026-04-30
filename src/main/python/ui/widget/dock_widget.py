@@ -1,6 +1,6 @@
 from typing import List
 from PySide6 import QtGui, QtCore, QtWidgets
-import src.main.python.ui.widget.constant as constant
+import src.main.python.api.constant as constant
 from src.main.python.api.playlist import Playlist
 from src.main.python.api.video import Video
 
