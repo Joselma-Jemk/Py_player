@@ -235,8 +235,10 @@ class Playlist:
         if video is None or new_idx < 0 or new_idx >= len(self.videos):
             return None, -1
 
-        if self.play_mode != PlayMode.SHUFFLE:
-            self._current_index = new_idx
+        self._current_index = new_idx
+
+        if self.play_mode == PlayMode.SHUFFLE:
+            self._shuffle_position = nav._shuffle_position
 
         self.p_state.update_state(
             index=new_idx,
@@ -258,8 +260,10 @@ class Playlist:
         if video is None or new_idx < 0 or new_idx >= len(self.videos):
             return None, -1
 
-        if self.play_mode != PlayMode.SHUFFLE and new_idx >= 0:
-            self._current_index = new_idx
+        self._current_index = new_idx
+
+        if self.play_mode == PlayMode.SHUFFLE:
+            self._shuffle_position = nav._shuffle_position
 
         self.p_state.update_state(index=new_idx, video_path=video.file_path if video else None)
         self._auto_save_if_needed()

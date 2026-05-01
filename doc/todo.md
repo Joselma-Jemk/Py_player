@@ -1,4 +1,4 @@
-# TODO — Pyplayer `constant.py`
+# TODO — PyPlayer
 
 ## Points d'amélioration identifiés
 
@@ -150,7 +150,7 @@
 
 ## Notes d'implémentation (Point 8)
 
-- Création de `src/main/python/ui/widget/config.py`.
+- Création de `python/ui/widget/config.py`.
 - Ajout d'une classe dédiée `PyPlayerConfig`.
 - `PyPlayerConfig` centralise :
   - détection des chemins projet (`project_root`, `main_dir`, `icons_dir`, `resources_dir`)
@@ -160,14 +160,14 @@
 - `constant.py` est allégé et consomme `CONFIG` (plus de logique config dupliquée).
 - Vérification runtime OK : import `CONFIG`, accès `constant.PROJECT_ROOT`, `constant.preferences`, `constant.ICON_PLAY`.
 - Mise à jour architecture :
-  - `config.py` déplacé vers `src/main/python/api/config.py`
-  - `constant.py` déplacé vers `src/main/python/api/constant.py`
-  - imports migrés vers `src.main.python.api.constant`
+  - `config.py` déplacé vers `src/pyplayer/infrastructure/config/settings.py`
+  - `constant.py` déplacé vers `src/pyplayer/ui/theme/colors.py`
+  - imports migrés vers `src.pyplayer.ui.theme`
   - compilation `py_compile` OK sur les fichiers impactés.
 
 ## Notes d'implémentation (Point 9)
 
-- Ajout d'une API explicite `reset_runtime_caches() -> None` dans `src/main/python/api/constant.py`.
+- Ajout d'une API explicite `reset_runtime_caches() -> None` dans `src/pyplayer/ui/theme/colors.py`.
 - Cette API vide :
   - `_FIND_PATH_CACHE`
   - `_ICON_CACHE`
@@ -178,7 +178,7 @@
 
 ## Notes d'implémentation (Point 10)
 
-- `FileHandler` remplacé par `RotatingFileHandler` dans `src/main/python/api/config.py`.
+- `FileHandler` remplacé par `RotatingFileHandler` dans `src/pyplayer/infrastructure/config/settings.py`.
 - Paramètres appliqués :
   - `maxBytes=5 * 1024 * 1024` (5 MB)
   - `backupCount=3`
@@ -203,8 +203,8 @@
 ## Retour analyse API "save"
 
 - Zones sensibles identifiées :
-  - `src/main/python/api/playlist.py` → `save_to_file()`
-  - `src/main/python/api/pyplayer_manager.py` → `_save_config()`, `_save_last_played()`
+  - `src/pyplayer/domain/playlist/playlist.py` → `save_to_file()`
+  - `src/pyplayer/app/playlist_manager.py` → `_save_config()`, `_save_last_played()`
 - État actuel : écritures directes `open(..., 'w')` + `json.dump(...)`.
 - Risque : si interruption/crash en cours d'écriture, JSON tronqué/corrompu.
 - Action recommandée : appliquer une écriture atomique (`.tmp` + `replace()`).
@@ -212,7 +212,7 @@
 
 ## Notes d'implémentation (Point 12)
 
-- Nouveau module ajouté : `src/main/python/api/io_utils.py`.
+- Nouveau module ajouté : `src/pyplayer/infrastructure/persistence/io_utils.py`.
 - Nouvelle fonction `write_json_atomic(file_path, data, indent=2, ensure_ascii=False)` :
   - écrit dans un fichier temporaire caché dans le même dossier (`.{name}.tmp-<uuid>`)
   - `json.dump(...)` + `flush()` + `os.fsync(...)`
@@ -220,12 +220,12 @@
   - tentative de `fsync` du dossier parent (best effort)
   - suppression du temporaire en `finally` si présent.
 - Intégrations réalisées :
-  - `src/main/python/api/playlist.py` → `save_to_file()` utilise `write_json_atomic(...)`
-  - `src/main/python/api/pyplayer_manager.py` → `_save_config()` et `_save_last_played()` utilisent `write_json_atomic(...)`
+  - `src/pyplayer/domain/playlist/playlist.py` → `save_to_file()` utilise `write_json_atomic(...)`
+  - `src/pyplayer/app/playlist_manager.py` → `_save_config()` et `_save_last_played()` utilisent `write_json_atomic(...)`
 - Vérifications headless effectuées :
-  - test unitaire dédié `src/main/python/api/test_atomic_save.py` (unittest) en mode RED→GREEN
+  - test unitaire dédié `tests/test_atomic_save.py` (unittest) en mode RED→GREEN
   - cas de panne simulée (`json.dump` patché qui écrit partiellement puis lève une erreur)
   - les fichiers cibles existants restent intacts dans les 3 cas
-  - `python3 -m unittest src.main.python.api.test_atomic_save -v` → `OK (3 tests)`
+  - `python3 -m unittest tests/test_atomic_save -v` → `OK (3 tests)`
   - compilation ciblée `py_compile` OK sur les fichiers modifiés
   - sanity check runtime playlist/manager JSON OK.

@@ -377,7 +377,7 @@ class HelpDialog(QtWidgets.QDialog):
                 font-size: 18px;
                 font-weight: bold;
                 color: white;
-                qproperty-alignment: AlignCenter;
+                qproperty-alignment: Qt.AlignCenter;
             }
         """
         )
@@ -841,7 +841,7 @@ class HelpDialog(QtWidgets.QDialog):
                 background-color: {color}20;
                 border-radius: 20px;
                 padding: 6px;
-                qproperty-alignment: AlignCenter;
+                qproperty-alignment: Qt.AlignCenter;
                 min-width: 40px;
                 max-width: 40px;
                 min-height: 40px;

@@ -143,11 +143,7 @@ class PlaylistNavigation:
             try:
                 prev_index = self._shuffle_history.pop()
                 if 0 <= prev_index < len(self._videos):
-                    if self._shuffle_order:
-                        try:
-                            self._shuffle_position = self._shuffle_order.index(prev_index)
-                        except ValueError:
-                            self._shuffle_position = max(0, self._shuffle_position - 1)
+                    self._shuffle_position -= 1
                     return self._videos[prev_index], prev_index
             except (IndexError, ValueError):
                 pass

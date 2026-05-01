@@ -288,13 +288,7 @@ class TestPlaylist(unittest.TestCase):
             Path(f.file_path).unlink()
 
     def test_navigation_shuffle_mode(self):
-        """Test navigation in SHUFFLE mode.
-
-        NOTE: SHUFFLE mode get_previous_video has a known bug where it can return None
-        even when navigation should be possible. This is due to shuffle_history being
-        empty after get_next_video and shuffle_position not being properly updated.
-        The get_next_video part works correctly.
-        """
+        """Test navigation in SHUFFLE mode — next then previous."""
         playlist = Playlist()
         for i in range(5):
             f = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
@@ -303,20 +297,71 @@ class TestPlaylist(unittest.TestCase):
         playlist.set_play_mode(PlayMode.SHUFFLE)
         playlist.ensure_active()
 
-        # Verify shuffle state is initialized
         self.assertTrue(len(playlist._shuffle_order) > 0, "Shuffle order should be initialized")
         self.assertTrue(playlist._shuffle_position >= 0, "Shuffle position should be >= 0")
-        self.assertTrue(playlist.current_index >= 0, "Current index should be >= 0 after ensure_active")
 
-        next_video, next_idx = playlist.get_next_video()
-        self.assertIsNotNone(next_video, "get_next_video should return a video in SHUFFLE mode")
-        self.assertTrue(next_idx >= 0, f"next_idx should be >= 0, got {next_idx}")
+        next1, idx1 = playlist.get_next_video()
+        self.assertIsNotNone(next1, "get_next_video should return a video in SHUFFLE mode")
 
-        # get_previous_video in SHUFFLE mode has a known issue - it may return None
-        # due to shuffle_history being empty and shuffle_position not properly managed
-        prev_video, prev_idx = playlist.get_previous_video()
-        # We just verify the call completes without error; result may be None due to bug
-        # The important thing is get_next_video works correctly
+        next2, idx2 = playlist.get_next_video()
+        self.assertIsNotNone(next2, "second get_next_video should return a video")
+
+        prev, prev_idx = playlist.get_previous_video()
+        self.assertIsNotNone(prev, "get_previous_video should return a video after next calls")
+        self.assertEqual(prev, next1, "previous should go back to the first video visited")
+
+        prev2, prev2_idx = playlist.get_previous_video()
+        self.assertIsNotNone(prev2, "second get_previous_video should still work")
+        # After going back to first visited (next1), second previous should go to the
+        # start position — the video playing before any next was called.
+        start_video, start_idx = playlist.videos[playlist.current_index], playlist.current_index
+        self.assertEqual(prev2, start_video, "second previous should return the start video")
+
+        for f in playlist.videos:
+            Path(f.file_path).unlink()
+
+    def test_navigation_shuffle_mode_multiple_previous(self):
+        """Test multiple consecutive previous calls in SHUFFLE mode."""
+        playlist = Playlist()
+        for i in range(6):
+            f = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+            f.close()
+            playlist.add_video(Path(f.name))
+        playlist.set_play_mode(PlayMode.SHUFFLE)
+        playlist.ensure_active()
+
+        visited = [playlist.videos[playlist.current_index]]
+        for _ in range(4):
+            v, _ = playlist.get_next_video()
+            visited.append(v)
+
+        for _ in range(4):
+            v, _ = playlist.get_previous_video()
+            self.assertIsNotNone(v, "previous should work after forward navigation")
+
+        for f in playlist.videos:
+            Path(f.file_path).unlink()
+
+    def test_navigation_shuffle_no_history(self):
+        """Test get_previous_video when shuffle has no history yet.
+
+        At shuffle start with no history, previous returns None (nothing to go back to).
+        After at least one next, previous should work.
+        """
+        playlist = Playlist()
+        for i in range(3):
+            f = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+            f.close()
+            playlist.add_video(Path(f.name))
+        playlist.set_play_mode(PlayMode.SHUFFLE)
+        playlist.ensure_active()
+
+        prev, idx = playlist.get_previous_video()
+        self.assertIsNone(prev, "previous should return None at shuffle start with no history")
+
+        playlist.get_next_video()
+        prev, idx = playlist.get_previous_video()
+        self.assertIsNotNone(prev, "previous should work after at least one next")
 
         for f in playlist.videos:
             Path(f.file_path).unlink()

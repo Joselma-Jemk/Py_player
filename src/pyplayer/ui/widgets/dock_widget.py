@@ -366,11 +366,9 @@ class DockWidget(QtWidgets.QDockWidget):
             QPushButton:hover {
                 background-color: rgba(60, 60, 60, 0.9);
                 border: 1px solid rgba(90, 90, 90, 0.9);
-                transform: translateY(-1px);
             }
             QPushButton:pressed {
                 background-color: rgba(40, 40, 40, 0.9);
-                transform: translateY(0px);
             }
         """
         buttons_config = [

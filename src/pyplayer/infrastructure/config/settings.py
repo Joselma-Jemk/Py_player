@@ -14,9 +14,18 @@ class PyPlayerConfig:
     def __init__(self, current_file: Path) -> None:
         self.current_file = current_file.resolve()
         self.project_root = self._find_project_root(self.current_file)
-        self.main_dir = self.project_root / "src" / "main"
-        self.icons_dir = self.main_dir / "icons"
-        self.resources_dir = self.main_dir / "resources"
+
+        # Asset directories
+        self.assets_dir = self.project_root / "assets"
+        self.icons_dir = self.assets_dir / "icons"
+        self.fonts_dir = self.assets_dir / "fonts"
+
+        # Config directory
+        self.config_dir = self.project_root / "config"
+
+        # Legacy compatibility (src/main no longer exists, point to assets)
+        self.main_dir = self.assets_dir
+        self.resources_dir = self.fonts_dir
 
         self.default_preferences: dict[str, str | int] = {
             "icon_number": 1,
@@ -58,7 +67,7 @@ class PyPlayerConfig:
             return fallback_dir
 
     def _build_logger(self) -> logging.Logger:
-        logger = logging.getLogger("pyplayer.constant")
+        logger = logging.getLogger("pyplayer.config")
         logger.setLevel(logging.INFO)
         logger.propagate = False
 
@@ -122,7 +131,7 @@ class PyPlayerConfig:
         return str(self.default_preferences["icon_name"])
 
     def load_preferences(self) -> dict[str, str | int]:
-        preferences_path = self.resources_dir / "preferences.json"
+        preferences_path = self.config_dir / "preferences.json"
         if not preferences_path.exists():
             return self.default_preferences.copy()
 

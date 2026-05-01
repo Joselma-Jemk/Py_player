@@ -1,22 +1,5 @@
-"""
-
-        ██████╗ ██╗   ██╗██████╗ ██╗      █████╗ ██╗   ██╗███████╗██████╗
-        ██╔══██╗╚██╗ ██╔╝██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗
-        ██████╔╝ ╚████╔╝ ██████╔╝██║     ███████║ ╚████╔╝ █████╗  ██████╔╝
-        ██╔═══╝   ╚██╔╝  ██╔═══╝ ██║     ██╔══██║  ╚██╔╝  ██╔══╝  ██╔══██╗
-        ██║        ██║   ██║     ███████╗██║  ██║   ██║   ███████╗██║  ██║
-        ╚═╝        ╚═╝   ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
-
-"""
-import sys
-from PySide6 import QtCore, QtWidgets
-from src.pyplayer.ui.main_window import MainWindow
+"""Dev entry point — delegates to bootstrap."""
+from src.pyplayer.bootstrap import run
 
 if __name__ == '__main__':
-    QtWidgets.QApplication.setAttribute(QtCore.Qt.ApplicationAttribute.AA_UseOpenGLES)
-    app = QtWidgets.QApplication(sys.argv)
-
-    window = MainWindow()
-    window.show()
-
-    sys.exit(app.exec())
+    run()

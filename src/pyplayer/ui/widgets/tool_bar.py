@@ -114,7 +114,7 @@ class VolumeWidget(QtWidgets.QWidget):
                 background-color: rgba(60, 60, 60, 0.7);
                 border: 1px solid rgba(80, 80, 80, 0.5);
                 border-radius: 4px;
-                padding-top-bottom: 4px;
+                padding: 4px 0px;
                 color: #4CAF50;
                 font-size: 16px;
             }
@@ -280,7 +280,7 @@ class PlayerControlsWidget(QtWidgets.QWidget):
                 font-size: 14px;
                 padding: 0px;
                 margin: 0px;
-                qproperty-alignment: AlignCenter;
+                qproperty-alignment: Qt.AlignCenter;
                 min-width: 30px;
                 min-height: 30px;
             }
@@ -313,7 +313,7 @@ class PlayerControlsWidget(QtWidgets.QWidget):
                 font-size: 14px;
                 padding: 0px;
                 margin: 0px;
-                qproperty-alignment: AlignCenter;
+                qproperty-alignment: Qt.AlignCenter;
                 min-width: 30px;
                 min-height: 30px;
             }
