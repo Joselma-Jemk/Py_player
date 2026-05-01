@@ -32,6 +32,13 @@ from .icons import (
     ICON_PAUSE,
     ICON_PLAY,
 )
+from .qtawesome_icons import (
+    make_icon,
+    playback_icon,
+    play_mode_icon,
+    playlist_action_icon,
+    volume_icon,
+)
 
 __all__ = [
     # colors
@@ -66,4 +73,9 @@ __all__ = [
     "ICON_INFOS",
     "ICON_PAUSE",
     "ICON_PLAY",
+    "make_icon",
+    "playback_icon",
+    "play_mode_icon",
+    "playlist_action_icon",
+    "volume_icon",
 ]

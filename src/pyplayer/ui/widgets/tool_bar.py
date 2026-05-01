@@ -9,8 +9,11 @@ from src.pyplayer.ui.theme import (
     PRINCIPAL_TEXT_COLOR,
     SECONDARY_COLOR,
     THIRD_COLOR,
+    playback_icon,
+    play_mode_icon,
+    playlist_action_icon,
+    volume_icon,
 )
-from src.pyplayer.infrastructure.filesystem import find_path
 from src.pyplayer.domain.playlist import PlayMode
 
 
@@ -22,7 +25,7 @@ class VolumeWidget(QtWidgets.QWidget):
 
         self.slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
         self.lbl = QtWidgets.QLabel()
-        self.btn = QtWidgets.QPushButton("\ue050")
+        self.btn = QtWidgets.QPushButton()
         self.setup_ui()
 
     def setup_ui(self):
@@ -30,6 +33,7 @@ class VolumeWidget(QtWidgets.QWidget):
         self.modify_widgets()
         self.create_layouts()
         self.setup_connections()
+        self.update_button_icon()
 
     def create_widgets(self):
         self.slider.setRange(0, 100)
@@ -42,6 +46,7 @@ class VolumeWidget(QtWidgets.QWidget):
 
         self.btn.setFixedSize(40, 40)
         self.btn.setCheckable(True)
+        self.btn.setIconSize(QtCore.QSize(20, 20))
         self.mute_state = False
 
     def modify_widgets(self):
@@ -213,18 +218,7 @@ class VolumeWidget(QtWidgets.QWidget):
         self.update_button_icon()
 
     def update_button_icon(self):
-        if self.mute_state:
-            self.btn.setText("\ue04f")
-        else:
-            value = self.slider.value()
-            if value == 0:
-                self.btn.setText("\ue04f")
-            elif value < 33:
-                self.btn.setText("\ue04e")
-            elif value < 66:
-                self.btn.setText("\ue04d")
-            else:
-                self.btn.setText("\ue050")
+        self.btn.setIcon(volume_icon(self.slider.value(), muted=self.mute_state))
 
     def volume_up_and_down(self, direction):
         value = self.slider.value()
@@ -252,27 +246,22 @@ class VolumeWidget(QtWidgets.QWidget):
 class PlayerControlsWidget(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.icon_font = None
         self._play_mode = PlayMode.NORMAL
         self.last_pressed_button = None
+        self._play_pause_state = "play"
         self.setup_ui()
 
     def setup_ui(self):
-        self.icon_font_initialize()
         self.create_widgets()
         self.modify_widgets()
         self.create_layouts()
         self.setup_connections()
 
-    def icon_font_initialize(self, size=14):
-        from src.pyplayer.ui.theme.fonts import get_icon_font
-        self.icon_font = get_icon_font(size)
-
     def create_widgets(self):
-        self.btn_play_pause = QtWidgets.QPushButton("\ue037")
-        self.btn_stop = QtWidgets.QPushButton("\ue047")
-        self.btn_skipnext = QtWidgets.QPushButton("\ue044")
-        self.btn_skipprevious = QtWidgets.QPushButton("\ue045")
+        self.btn_play_pause = QtWidgets.QPushButton()
+        self.btn_stop = QtWidgets.QPushButton()
+        self.btn_skipnext = QtWidgets.QPushButton()
+        self.btn_skipprevious = QtWidgets.QPushButton()
         self.btn_play_mode = QtWidgets.QPushButton()
         self.btn_list = [
             self.btn_play_pause,
@@ -344,11 +333,17 @@ class PlayerControlsWidget(QtWidgets.QWidget):
         """
 
         for btn in self.btn_list:
-            btn.setFont(self.icon_font)
             btn.setFixedSize(40, 40)
+            btn.setText("")
+            btn.setIconSize(QtCore.QSize(18, 18))
             btn.setStyleSheet(base_style)
             btn.base_style = base_style
             btn.active_style = active_style
+
+        self.btn_play_pause.setIcon(playback_icon("play"))
+        self.btn_stop.setIcon(playback_icon("stop"))
+        self.btn_skipnext.setIcon(playback_icon("next"))
+        self.btn_skipprevious.setIcon(playback_icon("previous"))
 
         self.last_pressed_button = self.btn_play_pause
         self.btn_play_pause.setStyleSheet(active_style)
@@ -425,7 +420,7 @@ class PlayerControlsWidget(QtWidgets.QWidget):
         self._play_mode = value
 
     def btn_play_pause_tooltip(self):
-        if self.btn_play_pause.text() == "\ue037":
+        if self._play_pause_state == "pause":
             self.btn_play_pause.setToolTip(
                 "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
                 "<b style='color:#4CAF50; font-size: 12px;'>Pause</b>"
@@ -439,57 +434,52 @@ class PlayerControlsWidget(QtWidgets.QWidget):
             )
         self.set_active_button(self.btn_play_pause)
 
+    def set_play_pause_state(self, state: str):
+        self._play_pause_state = state
+        self.btn_play_pause.setIcon(playback_icon("pause" if state == "pause" else "play"))
+        self.btn_play_pause_tooltip()
+
     def btn_play_mode_init(self):
-        if self.play_mode == PlayMode.NORMAL:
-            self.btn_play_mode.setText("\ue14b")
-        elif self.play_mode == PlayMode.LOOP_ONE:
-            self.btn_play_mode.setText("\ue041")
-        elif self.play_mode == PlayMode.LOOP_ALL:
-            self.btn_play_mode.setText("\ue040")
-        else:
-            self.btn_play_mode.setText("\ue043")
+        self.btn_play_mode.setIcon(play_mode_icon(self.play_mode.name))
         self.play_mode_tooltip()
 
     def player_mode_update(self):
         if self.play_mode == PlayMode.NORMAL:
-            self.btn_play_mode.setText("\ue041")
+            self.play_mode = PlayMode.LOOP_ONE
         elif self.play_mode == PlayMode.LOOP_ONE:
-            self.btn_play_mode.setText("\ue040")
+            self.play_mode = PlayMode.LOOP_ALL
         elif self.play_mode == PlayMode.LOOP_ALL:
-            self.btn_play_mode.setText("\ue043")
+            self.play_mode = PlayMode.SHUFFLE
         else:
-            self.btn_play_mode.setText("\ue14b")
+            self.play_mode = PlayMode.NORMAL
+        self.btn_play_mode.setIcon(play_mode_icon(self.play_mode.name))
         self.play_mode_tooltip()
 
     def play_mode_tooltip(self):
-        if self.btn_play_mode.text() == "\ue040":
+        if self.play_mode == PlayMode.LOOP_ALL:
             self.btn_play_mode.setToolTip(
                 "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
                 "<b style='color:#4CAF50; font-size: 12px;'>Boucler sur toute la playlist</b>"
                 "</div>"
             )
-            self.play_mode = PlayMode.LOOP_ALL
-        elif self.btn_play_mode.text() == "\ue041":
+        elif self.play_mode == PlayMode.LOOP_ONE:
             self.btn_play_mode.setToolTip(
                 "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
                 "<b style='color:#4CAF50; font-size: 12px;'>Boucler sur la vidéo actuelle</b>"
                 "</div>"
             )
-            self.play_mode = PlayMode.LOOP_ONE
-        elif self.btn_play_mode.text() == "\ue14b":
+        elif self.play_mode == PlayMode.NORMAL:
             self.btn_play_mode.setToolTip(
                 "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
                 "<b style='color:#4CAF50; font-size: 12px;'>Lire la playlist une seule fois</b>"
                 "</div>"
             )
-            self.play_mode = PlayMode.NORMAL
         else:
             self.btn_play_mode.setToolTip(
                 "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
                 "<b style='color:#4CAF50; font-size: 12px;'>Lecture aléatoire en boucle</b>"
                 "</div>"
             )
-            self.play_mode = PlayMode.SHUFFLE
 
 
 class TimeLabelWidget(QtWidgets.QLabel):
@@ -529,15 +519,17 @@ class TimeLabelWidget(QtWidgets.QLabel):
 
 class PlaylistButtonWidget(QtWidgets.QPushButton):
     def __init__(self, parent=None):
-        super().__init__("\ue0ee", parent)
+        super().__init__(parent)
         self.setFixedSize(46, 46)
+        self.setText("")
+        self.setIcon(playlist_action_icon("show_playlist"))
+        self.setIconSize(QtCore.QSize(20, 20))
         buttons_style = """
             QPushButton {
                 background-color: rgba(35, 39, 43, 0.94);
                 border: 1px solid rgba(118, 232, 128, 0.75);
                 border-radius: 12px;
                 color: #4CAF50;
-                font-size: 18px;
                 padding: 10px;
             }
 
@@ -608,9 +600,6 @@ class ToolBarWidget(QtWidgets.QToolBar):
             }
             """
         )
-
-        if self.player_controls.icon_font:
-            self.btn_playlist.setFont(self.player_controls.icon_font)
 
     def setup_connections(self):
         self.volume_widget.slider.valueChanged.connect(self.volume_widget.volume_update)

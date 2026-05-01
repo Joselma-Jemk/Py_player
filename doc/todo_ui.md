@@ -5,6 +5,10 @@
 1. **Contenu de l’écran d’attente du player**
    - Revoir complètement ce qui est affiché pendant l’initialisation du lecteur.
    - Le message actuel est trop statique et reste peu informatif.
+   - Repenser le contenu de cette page/zone :
+     - quoi afficher avant la première lecture
+     - quand masquer cet état
+     - quel message montrer si aucun média n’est prêt
    - Définir un vrai état d’attente UX :
      - message plus utile
      - indicateur visuel crédible

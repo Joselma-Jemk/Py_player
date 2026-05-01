@@ -1139,7 +1139,7 @@ class MainWindow(QtWidgets.QMainWindow):
         act = self.menubar_widget.act_play
 
         # Vérifier si le bouton est déjà en mode "play" ou "pause"
-        btn_mode = "play" if btn.text() == "\ue037" else "pause"
+        btn_mode = self.toolbar_widget.player_controls._play_pause_state
 
         # Si aucun état n'est fourni, obtenir l'état actuel du player
         if not state:
@@ -1153,7 +1153,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if state == QtMultimedia.QMediaPlayer.PlaybackState.PlayingState:
             # Si le player est en lecture, le bouton doit être en mode "pause"
             if btn_mode == "play":
-                btn.setText("\ue034")  # Icône pause
+                self.toolbar_widget.player_controls.set_play_pause_state("pause")
                 act.setIcon(QtGui.QIcon(ICON_PAUSE))
                 act.setToolTip("Pause")
                 act.setText("Pause")
@@ -1161,14 +1161,14 @@ class MainWindow(QtWidgets.QMainWindow):
         elif state == QtMultimedia.QMediaPlayer.PlaybackState.PausedState:
             # Si le player est en pause, le bouton doit être en mode "play"
             if btn_mode == "pause":
-                btn.setText("\ue037")  # Icône play
+                self.toolbar_widget.player_controls.set_play_pause_state("play")
                 act.setIcon(QtGui.QIcon(ICON_PLAY))
                 act.setToolTip("Lire")
                 act.setText("Lire")
         elif state == QtMultimedia.QMediaPlayer.PlaybackState.StoppedState:
             # Si le player est arrêté, le bouton doit être en mode "play"
             if btn_mode == "pause":
-                btn.setText("\ue037")  # Icône play
+                self.toolbar_widget.player_controls.set_play_pause_state("play")
                 act.setIcon(QtGui.QIcon(ICON_PLAY))
                 act.setToolTip("Lire")
                 act.setText("Lire")
@@ -1184,9 +1184,6 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.current_video:
             return
         self.player_widget.set_muted(not self.current_video.state.muted)
-        if self.current_video.state.muted :
-            self.toolbar_widget.volume_widget.btn.setText("\ue04f")
-            return
         self.toolbar_widget.volume_widget.update_button_icon()
         pass
 

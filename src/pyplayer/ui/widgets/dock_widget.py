@@ -12,6 +12,7 @@ from src.pyplayer.ui.theme import (
     PRINCIPAL_TEXT_COLOR,
     SECONDARY_COLOR,
     THIRD_COLOR,
+    playlist_action_icon,
 )
 from src.pyplayer.infrastructure.filesystem import find_path
 
@@ -193,13 +194,13 @@ class DockWidget(QtWidgets.QDockWidget):
 
         self.tab_current = QtWidgets.QWidget()
         self.lstw = QtWidgets.QListWidget()
-        self.btn_add_to_playlist = QtWidgets.QPushButton("\ue03b")
-        self.btn_remove_to_playlist = QtWidgets.QPushButton("\ueb80")
+        self.btn_add_to_playlist = QtWidgets.QPushButton()
+        self.btn_remove_to_playlist = QtWidgets.QPushButton()
 
         self.tab_archive = QtWidgets.QWidget()
         self.lstw_archive = QtWidgets.QListWidget()
-        self.btn_save_playlist = QtWidgets.QPushButton("\ueb60")
-        self.btn_remove_save = QtWidgets.QPushButton("\ue872")
+        self.btn_save_playlist = QtWidgets.QPushButton()
+        self.btn_remove_save = QtWidgets.QPushButton()
 
     def modify_widgets(self):
         self.tab_widget.setStyleSheet(
@@ -400,7 +401,8 @@ class DockWidget(QtWidgets.QDockWidget):
             ),
         ]
         for btn, color, tooltip, hover_color, hover_bg in buttons_config:
-            btn.setFont(self.icon_font)
+            btn.setText("")
+            btn.setIconSize(QtCore.QSize(20, 20))
             btn.setStyleSheet(
                 f"""
                 {button_base_style}
@@ -419,6 +421,11 @@ class DockWidget(QtWidgets.QDockWidget):
                 "border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);'>"
                 f"<b style='color:#ffffff; font-size: 12px;'>{tooltip}</b></div>"
             )
+
+        self.btn_add_to_playlist.setIcon(playlist_action_icon("add"))
+        self.btn_remove_to_playlist.setIcon(playlist_action_icon("remove"))
+        self.btn_save_playlist.setIcon(playlist_action_icon("save_playlist"))
+        self.btn_remove_save.setIcon(playlist_action_icon("delete_playlist"))
 
         self.lstw.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection)
         self.lstw.setAlternatingRowColors(False)
