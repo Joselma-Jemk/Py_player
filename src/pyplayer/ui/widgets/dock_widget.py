@@ -181,7 +181,7 @@ class DockWidget(QtWidgets.QDockWidget):
 
     def customize_self(self):
         self.setWindowTitle("Playlist")
-        self.setMinimumWidth(250)
+        self.setMinimumWidth(285)
 
     def icon_font_initialize(self, size=14):
         from src.pyplayer.ui.theme.fonts import get_icon_font
@@ -209,25 +209,25 @@ class DockWidget(QtWidgets.QDockWidget):
                 background-color: transparent;
             }
             QTabBar::tab {
-                background-color: rgba(40, 40, 40, 0.8);
-                color: #b0b0b0;
-                padding: 8px 16px;
-                margin-right: 1px;
+                background-color: rgba(39, 42, 47, 0.92);
+                color: #b7bec6;
+                padding: 12px 18px;
+                margin-right: 4px;
                 border: none;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
+                border-top-left-radius: 10px;
+                border-top-right-radius: 10px;
                 font-size: 11px;
-                font-weight: 500;
-                letter-spacing: 0.5px;
+                font-weight: 600;
+                letter-spacing: 0.4px;
                 text-transform: uppercase;
             }
             QTabBar::tab:selected {
-                background-color: rgba(50, 50, 50, 0.95);
+                background-color: rgba(30, 33, 37, 0.98);
                 color: #ffffff;
-                border-bottom: 2px solid #4CAF50;
+                border-bottom: 3px solid #4CAF50;
             }
             QTabBar::tab:hover {
-                background-color: rgba(60, 60, 60, 0.9);
+                background-color: rgba(54, 60, 66, 0.95);
                 color: #ffffff;
             }
             QTabBar {
@@ -239,34 +239,34 @@ class DockWidget(QtWidgets.QDockWidget):
 
         list_style = """
             QListWidget {
-                background-color: rgba(30, 30, 30, 0.7);
+                background-color: rgba(24, 26, 29, 0.92);
                 color: #e0e0e0;
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                border-radius: 4px;
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                border-radius: 12px;
                 font-size: 12px;
                 font-family: 'Segoe UI', Arial, sans-serif;
                 outline: none;
-                padding: 4px;
+                padding: 6px;
             }
 
             QListWidget::item {
-                height: 44px;
+                height: 46px;
                 padding: 0px;
-                margin: 1px 0;
+                margin: 2px 0;
                 border: none;
                 font-family: 'Segoe UI', Arial, sans-serif;
-                background-color: rgba(30, 30, 30, 0.7);
+                background-color: rgba(24, 26, 29, 0.92);
             }
 
             QListWidget::item:selected {
-                background-color: rgba(76, 175, 80, 0.15);
-                border-left: 3px solid rgba(76, 175, 80, 0.5);
+                background-color: rgba(76, 175, 80, 0.16);
+                border-left: 3px solid rgba(118, 232, 128, 0.75);
                 padding-left: 0px;
-                border-radius: 2px;
+                border-radius: 8px;
             }
 
             QListWidget::item:hover:!selected {
-                background-color: rgba(255, 255, 255, 0.07);
+                background-color: rgba(255, 255, 255, 0.06);
             }
 
             QListWidget::item .video-item-container {
@@ -290,7 +290,7 @@ class DockWidget(QtWidgets.QDockWidget):
             }
 
             .video-item-text[state="normal"] {
-                color: #e0e0e0;
+                color: #e8ecef;
                 font-family: 'Segoe UI', Arial, sans-serif;
                 font-size: 12px;
             }
@@ -306,7 +306,7 @@ class DockWidget(QtWidgets.QDockWidget):
                 font-family: 'Segoe UI', Arial, sans-serif;
                 font-weight: 600;
                 color: #ffffff;
-                font-size: 12px;
+                font-size: 13px;
             }
 
             .video-item-progress[state="current"] {
@@ -336,12 +336,12 @@ class DockWidget(QtWidgets.QDockWidget):
                 margin: 2px;
             }
             QScrollBar::handle:vertical {
-                background-color: rgba(100, 100, 100, 0.7);
+                background-color: rgba(93, 100, 108, 0.75);
                 border-radius: 5px;
                 min-height: 30px;
             }
             QScrollBar::handle:vertical:hover {
-                background-color: rgba(120, 120, 120, 0.9);
+                background-color: rgba(118, 232, 128, 0.55);
             }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
                 height: 0px;
@@ -352,21 +352,21 @@ class DockWidget(QtWidgets.QDockWidget):
 
         button_base_style = """
             QPushButton {
-                background-color: rgba(50, 50, 50, 0.8);
-                border: 1px solid rgba(70, 70, 70, 0.8);
-                border-radius: 4px;
-                padding: 4px 6px;
-                font-size: 18px;
+                background-color: rgba(42, 46, 50, 0.92);
+                border: 1px solid rgba(85, 92, 98, 0.82);
+                border-radius: 10px;
+                padding: 8px 6px;
+                font-size: 19px;
                 font-weight: 500;
                 letter-spacing: 0.3px;
                 margin: 2px 0;
             }
             QPushButton:hover {
-                background-color: rgba(60, 60, 60, 0.9);
-                border: 1px solid rgba(90, 90, 90, 0.9);
+                background-color: rgba(54, 60, 65, 0.96);
+                border: 1px solid rgba(118, 232, 128, 0.7);
             }
             QPushButton:pressed {
-                background-color: rgba(40, 40, 40, 0.9);
+                background-color: rgba(58, 146, 67, 0.95);
             }
         """
         buttons_config = [
@@ -429,22 +429,22 @@ class DockWidget(QtWidgets.QDockWidget):
 
     def create_layouts(self):
         self.main_layout = QtWidgets.QVBoxLayout(self.main_widget)
-        self.main_layout.setContentsMargins(3, 0, 3, 3)
-        self.main_layout.setSpacing(0)
+        self.main_layout.setContentsMargins(6, 6, 6, 6)
+        self.main_layout.setSpacing(4)
 
         self.tab_current_layout = QtWidgets.QVBoxLayout(self.tab_current)
-        self.tab_current_layout.setContentsMargins(0, 0, 0, 0)
-        self.tab_current_layout.setSpacing(5)
+        self.tab_current_layout.setContentsMargins(0, 6, 0, 0)
+        self.tab_current_layout.setSpacing(8)
 
         self.current_buttons_layout = QtWidgets.QHBoxLayout()
-        self.current_buttons_layout.setSpacing(5)
+        self.current_buttons_layout.setSpacing(8)
 
         self.tab_archive_layout = QtWidgets.QVBoxLayout(self.tab_archive)
-        self.tab_archive_layout.setContentsMargins(0, 0, 0, 0)
-        self.tab_archive_layout.setSpacing(5)
+        self.tab_archive_layout.setContentsMargins(0, 6, 0, 0)
+        self.tab_archive_layout.setSpacing(8)
 
         self.archive_buttons_layout = QtWidgets.QHBoxLayout()
-        self.archive_buttons_layout.setSpacing(5)
+        self.archive_buttons_layout.setSpacing(8)
 
     def add_widgets_to_layouts(self):
         self.main_layout.addWidget(self.tab_widget)

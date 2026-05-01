@@ -17,8 +17,8 @@ from src.pyplayer.domain.playlist import PlayMode
 class VolumeWidget(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMaximumWidth(260)
-        self.setMinimumHeight(45)
+        self.setMaximumWidth(300)
+        self.setMinimumHeight(52)
 
         self.slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
         self.lbl = QtWidgets.QLabel()
@@ -34,23 +34,30 @@ class VolumeWidget(QtWidgets.QWidget):
     def create_widgets(self):
         self.slider.setRange(0, 100)
         self.slider.setValue(20)
-        self.slider.setFixedWidth(120)
+        self.slider.setFixedWidth(150)
 
         self.lbl.setText("20")
         self.lbl.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.lbl.setFixedWidth(25)
 
-        self.btn.setFixedSize(32, 32)
+        self.btn.setFixedSize(40, 40)
         self.btn.setCheckable(True)
         self.mute_state = False
 
     def modify_widgets(self):
+        self.setStyleSheet(
+            """
+            QWidget {
+                background: transparent;
+            }
+            """
+        )
         self.lbl.setStyleSheet(
             """
             QLabel {
                 background-color: transparent;
-                color: white;
-                font-size: 13px;
+                color: #f5f7fa;
+                font-size: 14px;
                 font-weight: bold;
                 padding: 0;
                 margin: 0;
@@ -62,10 +69,10 @@ class VolumeWidget(QtWidgets.QWidget):
         self.slider.setStyleSheet(
             """
             QSlider::groove:horizontal {
-                background-color: rgba(70, 70, 70, 0.8);
-                border: 1px solid rgba(90, 90, 90, 0.6);
-                height: 3px;
-                border-radius: 0.2px;
+                background-color: rgba(77, 84, 92, 0.55);
+                border: none;
+                height: 6px;
+                border-radius: 3px;
             }
 
             QSlider::sub-page:horizontal {
@@ -76,24 +83,28 @@ class VolumeWidget(QtWidgets.QWidget):
             }
 
             QSlider::handle:horizontal {
-                background-color: white;
-                border: 2px solid #4CAF50;
-                width: 6px;
-                height: 6px;
+                background-color: #f5f7fa;
+                border: 2px solid #62d66b;
+                width: 12px;
+                height: 12px;
                 margin: -4px 0;
-                border-radius: 4px;
+                border-radius: 8px;
             }
 
             QSlider::add-page:horizontal {
-                background-color: rgba(80, 80, 80, 0.4);
+                background-color: rgba(77, 84, 92, 0.35);
                 border: none;
                 height: 6px;
                 border-radius: 3px;
             }
 
+            QSlider::handle:horizontal:hover {
+                background-color: white;
+                border: 2px solid #8CF095;
+            }
+
             QSlider::groove:horizontal:disabled {
                 background-color: rgba(70, 70, 70, 0.6);
-                border: 1px solid rgba(90, 90, 90, 0.4);
             }
 
             QSlider::sub-page:horizontal:disabled {
@@ -111,19 +122,22 @@ class VolumeWidget(QtWidgets.QWidget):
         self.btn.setStyleSheet(
             """
             QPushButton {
-                background-color: rgba(60, 60, 60, 0.7);
-                border: 1px solid rgba(80, 80, 80, 0.5);
-                border-radius: 4px;
+                background-color: rgba(54, 58, 63, 0.9);
+                border: 1px solid rgba(92, 98, 105, 0.75);
+                border-radius: 10px;
                 padding: 4px 0px;
                 color: #4CAF50;
-                font-size: 16px;
+                font-size: 18px;
             }
             QPushButton:hover {
-                background-color: rgba(70, 70, 70, 0.8);
-                border: 1px solid rgba(100, 100, 100, 0.7);
+                background-color: rgba(76, 175, 80, 0.18);
+                border: 1px solid rgba(118, 232, 128, 0.85);
+                color: #dfffe0;
             }
             QPushButton:pressed {
-                background-color: rgba(50, 50, 50, 0.8);
+                background-color: rgba(52, 143, 60, 0.9);
+                border: 1px solid #2d7c35;
+                color: white;
             }
             QPushButton:checked {
                 color: #FF5252;
@@ -137,8 +151,8 @@ class VolumeWidget(QtWidgets.QWidget):
 
     def create_layouts(self):
         self.lyt = QtWidgets.QHBoxLayout(self)
-        self.lyt.setContentsMargins(8, 6, 8, 6)
-        self.lyt.setSpacing(10)
+        self.lyt.setContentsMargins(12, 6, 12, 6)
+        self.lyt.setSpacing(12)
         self.lyt.addWidget(self.btn)
         self.lyt.addWidget(self.slider)
         self.lyt.addWidget(self.lbl)
@@ -271,28 +285,28 @@ class PlayerControlsWidget(QtWidgets.QWidget):
     def modify_widgets(self):
         base_style = """
             QPushButton {
-                background-color: rgba(50, 50, 55, 0.9);
-                border: 1px solid rgba(80, 80, 85, 0.7);
-                border-radius: 6px;
-                color: #E0E0E0;
-                font-size: 14px;
+                background-color: rgba(49, 53, 58, 0.94);
+                border: 1px solid rgba(84, 92, 99, 0.85);
+                border-radius: 11px;
+                color: #f3f5f7;
+                font-size: 16px;
                 padding: 0px;
                 margin: 0px;
                 qproperty-alignment: Qt.AlignCenter;
-                min-width: 30px;
-                min-height: 30px;
+                min-width: 40px;
+                min-height: 40px;
             }
 
             QPushButton:hover {
-                background-color: rgba(76, 175, 80, 0.25);
-                border: 1px solid #4CAF50;
-                color: #4CAF50;
+                background-color: rgba(76, 175, 80, 0.24);
+                border: 1px solid rgba(118, 232, 128, 0.95);
+                color: white;
             }
 
             QPushButton:pressed {
-                background-color: rgba(76, 175, 80, 0.35);
-                border: 1px solid #2E7D32;
-                color: #2E7D32;
+                background-color: rgba(62, 154, 70, 0.95);
+                border: 1px solid #2c7a33;
+                color: white;
             }
 
             QPushButton:disabled {
@@ -304,34 +318,34 @@ class PlayerControlsWidget(QtWidgets.QWidget):
 
         active_style = """
             QPushButton {
-                background-color: rgba(50, 50, 55, 0.9);
-                border: 1px solid #4CAF50;
-                color: #4CAF50;
-                border-radius: 6px;
-                font-size: 14px;
+                background-color: rgba(76, 175, 80, 0.16);
+                border: 1px solid rgba(118, 232, 128, 0.95);
+                color: #f4fff4;
+                border-radius: 11px;
+                font-size: 16px;
                 padding: 0px;
                 margin: 0px;
                 qproperty-alignment: Qt.AlignCenter;
-                min-width: 30px;
-                min-height: 30px;
+                min-width: 40px;
+                min-height: 40px;
             }
 
             QPushButton:hover {
-                background-color: rgba(76, 175, 80, 0.35);
-                border: 1px solid #66BB6A;
-                color: #66BB6A;
+                background-color: rgba(76, 175, 80, 0.32);
+                border: 1px solid #8CF095;
+                color: white;
             }
 
             QPushButton:pressed {
-                background-color: rgba(76, 175, 80, 0.45);
+                background-color: rgba(62, 154, 70, 0.95);
                 border: 1px solid #2E7D32;
-                color: #2E7D32;
+                color: white;
             }
         """
 
         for btn in self.btn_list:
             btn.setFont(self.icon_font)
-            btn.setFixedSize(30, 30)
+            btn.setFixedSize(40, 40)
             btn.setStyleSheet(base_style)
             btn.base_style = base_style
             btn.active_style = active_style
@@ -397,7 +411,8 @@ class PlayerControlsWidget(QtWidgets.QWidget):
 
     def create_layouts(self):
         self.lyt = QtWidgets.QHBoxLayout(self)
-        self.lyt.setSpacing(8)
+        self.lyt.setContentsMargins(10, 8, 10, 8)
+        self.lyt.setSpacing(10)
         for btn in self.btn_list:
             self.lyt.addWidget(btn)
 
@@ -450,28 +465,28 @@ class PlayerControlsWidget(QtWidgets.QWidget):
         if self.btn_play_mode.text() == "\ue040":
             self.btn_play_mode.setToolTip(
                 "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
-                "<b style='color:#4CAF50; font-size: 12px;'>Lecture de la playlist</b>"
+                "<b style='color:#4CAF50; font-size: 12px;'>Boucler sur toute la playlist</b>"
                 "</div>"
             )
             self.play_mode = PlayMode.LOOP_ALL
         elif self.btn_play_mode.text() == "\ue041":
             self.btn_play_mode.setToolTip(
                 "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
-                "<b style='color:#4CAF50; font-size: 12px;'>Lecture en boucle du fichier actuel</b>"
+                "<b style='color:#4CAF50; font-size: 12px;'>Boucler sur la vidéo actuelle</b>"
                 "</div>"
             )
             self.play_mode = PlayMode.LOOP_ONE
         elif self.btn_play_mode.text() == "\ue14b":
             self.btn_play_mode.setToolTip(
                 "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
-                "<b style='color:#4CAF50; font-size: 12px;'>Lire une seule fois le fichier actuel</b>"
+                "<b style='color:#4CAF50; font-size: 12px;'>Lire la playlist une seule fois</b>"
                 "</div>"
             )
             self.play_mode = PlayMode.NORMAL
         else:
             self.btn_play_mode.setToolTip(
                 "<div style='background-color: rgba(40, 40, 40, 0.95); padding: 6px; border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.3);'>"
-                "<b style='color:#4CAF50; font-size: 12px;'>Lecture aléatoire de la playlist en boucle</b>"
+                "<b style='color:#4CAF50; font-size: 12px;'>Lecture aléatoire en boucle</b>"
                 "</div>"
             )
             self.play_mode = PlayMode.SHUFFLE
@@ -483,13 +498,15 @@ class TimeLabelWidget(QtWidgets.QLabel):
         self.current_time = "00:00:00"
         self.total_time = "00:00:00"
         self.update_display()
-        self.setFixedHeight(40)
+        self.setFixedHeight(44)
         self.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.setStyleSheet(
             """
             QLabel {
-                background-color: transparent;
-                border: none;
+                background-color: rgba(27, 30, 34, 0.88);
+                border: 1px solid rgba(255,255,255,0.05);
+                border-radius: 12px;
+                padding: 0 14px;
                 font-family: 'Segoe UI', Arial, sans-serif;
             }
         """
@@ -513,19 +530,19 @@ class TimeLabelWidget(QtWidgets.QLabel):
 class PlaylistButtonWidget(QtWidgets.QPushButton):
     def __init__(self, parent=None):
         super().__init__("\ue0ee", parent)
-        self.setFixedSize(40, 40)
+        self.setFixedSize(46, 46)
         buttons_style = """
             QPushButton {
-                background-color: transparent;
-                border: 1px solid #4CAF50;
-                border-radius: 4px;
+                background-color: rgba(35, 39, 43, 0.94);
+                border: 1px solid rgba(118, 232, 128, 0.75);
+                border-radius: 12px;
                 color: #4CAF50;
-                font-size: 16px;
-                padding: 8px;
+                font-size: 18px;
+                padding: 10px;
             }
 
             QPushButton:hover {
-                background-color: #4CAF50;
+                background-color: rgba(76, 175, 80, 0.24);
                 color: white;
             }
 
@@ -542,7 +559,7 @@ class PlaylistButtonWidget(QtWidgets.QPushButton):
 class ToolBarWidget(QtWidgets.QToolBar):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(50)
+        self.setFixedHeight(72)
         self.setup_ui()
 
     def setup_ui(self):
@@ -564,8 +581,33 @@ class ToolBarWidget(QtWidgets.QToolBar):
 
         self.left_layout.setContentsMargins(0, 0, 0, 0)
         self.right_layout.setContentsMargins(0, 0, 0, 0)
-        self.left_layout.setSpacing(15)
-        self.right_layout.setSpacing(15)
+        self.left_layout.setSpacing(14)
+        self.right_layout.setSpacing(14)
+
+        self.setStyleSheet(
+            """
+            QToolBar {
+                background-color: rgba(24, 26, 29, 0.98);
+                border-top: 1px solid rgba(255,255,255,0.05);
+                spacing: 0px;
+                padding: 6px 10px;
+            }
+            """
+        )
+        self.left_container.setStyleSheet(
+            """
+            QWidget {
+                background-color: transparent;
+            }
+            """
+        )
+        self.right_container.setStyleSheet(
+            """
+            QWidget {
+                background-color: transparent;
+            }
+            """
+        )
 
         if self.player_controls.icon_font:
             self.btn_playlist.setFont(self.player_controls.icon_font)

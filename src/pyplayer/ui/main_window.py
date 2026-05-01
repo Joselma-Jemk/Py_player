@@ -609,7 +609,8 @@ class MainWindow(QtWidgets.QMainWindow):
         return None
 
     def set_manually_active_playlist(self):
-        position = self.player_widget.video_player.position()
+        player = self.player_widget.video_player if self.player_widget.player_ready else None
+        position = player.position() if player is not None else 0
         if position:
             self.save_video_on_position_changed(position)
             self.active_playlist.auto_save()
@@ -628,8 +629,8 @@ class MainWindow(QtWidgets.QMainWindow):
         pass
 
     def delete_playlist(self):
-        player = self.player_widget.video_player
-        if player.playbackState() == QtMultimedia.QMediaPlayer.PlaybackState.PlayingState:
+        player = self.player_widget.video_player if self.player_widget.player_ready else None
+        if player and player.playbackState() == QtMultimedia.QMediaPlayer.PlaybackState.PlayingState:
             self.stop_playing()
         selected = self.confirm_delete_playlist_multiple(self.manager.playlist_names.values())
         if selected:
@@ -912,9 +913,11 @@ class MainWindow(QtWidgets.QMainWindow):
             )
 
     def current_video_update_metadata(self,status):
-        if not status == QtMultimedia.QMediaPlayer.MediaStatus.LoadedMedia:
+        if not status == QtMultimedia.QMediaPlayer.MediaStatus.LoadedMedia or not self.current_video:
             return
         player = self.player_widget.video_player
+        if player is None:
+            return
         self.current_video.update_metadata(duration = player.duration())
         self.init_interface()
         pass
@@ -926,6 +929,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _update_video_resolution(self):
         """Récupère la résolution après que la vidéo ait commencé à jouer."""
+        if not self.current_video or not self.player_widget.player_ready:
+            return
         # Maintenant width()/height() devraient être corrects
         width = self.player_widget.video_output.width()
         height = self.player_widget.video_output.height()
@@ -940,6 +945,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def save_video_on_position_changed(self, position):
         """Sauvegarde l'état de la vidéo (appelé via timer throttlé)."""
+        if not self.current_video:
+            return
         # Ignorer les premières positions au démarrage pour éviter les boucles
         if position < 2000:  # 2 secondes
             return
@@ -957,7 +964,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.active_playlist.update_current_video_state(
             position=position,
-            playing=player_widget.video_player.isPlaying(),
+            playing=player_widget.video_player.isPlaying() if player_widget.video_player is not None else False,
             volume=volume,
             muted=muted
         )
@@ -1015,7 +1022,31 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def play_or_pause(self):
         """Joue ou met en pause la vidéo en fonction de l'état du lecteur"""
+        if not self.current_video:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Aucune vidéo sélectionnée",
+                "Veuillez d'abord sélectionner une vidéo dans la playlist.",
+                QtWidgets.QMessageBox.StandardButton.Ok
+            )
+            return
+
+        if not self.current_video.file_path.exists():
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Fichier introuvable",
+                f"Le fichier n'existe pas :\n{self.current_video.file_path}",
+                QtWidgets.QMessageBox.StandardButton.Ok
+            )
+            return
+
+        if not self.player_widget.player_ready:
+            self.player_widget.ensure_player_ready(self.play_video)
+            return
+
         player = self.player_widget.video_player
+        if player is None:
+            return
 
         # Si déjà en lecture, mettre en pause
         if player.playbackState() == QtMultimedia.QMediaPlayer.PlaybackState.PlayingState:
@@ -1027,37 +1058,19 @@ class MainWindow(QtWidgets.QMainWindow):
             player.play()
             return
 
-        # Vérifier si une vidéo est sélectionnée
-
-        #Sinon charger une vidéo et jouée.
-        if not self.current_video:
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Aucune vidéo sélectionnée",
-                "Veuillez d'abord sélectionner une vidéo dans la playlist.",
-                QtWidgets.QMessageBox.StandardButton.Ok
-            )
-            return
-
-        # Vérifier si le fichier existe
-        if not self.current_video.file_path.exists():
-            QtWidgets.QMessageBox.critical(
-                self,
-                "Fichier introuvable",
-                f"Le fichier n'existe pas :\n{self.current_video.file_path}",
-                QtWidgets.QMessageBox.StandardButton.Ok
-            )
-            return
-
         # Enfin, charger et jouer
         self.play_video()
         pass
 
     def stop_playing(self):
+        if not self.player_widget.player_ready:
+            return
         player = self.player_widget.video_player
+        if player is None:
+            return
         if (player.playbackState() == QtMultimedia.QMediaPlayer.PlaybackState.PlayingState or
                 player.playbackState() == QtMultimedia.QMediaPlayer.PlaybackState.PausedState):
-            position = self.player_widget.video_player.position()
+            position = player.position()
             self.save_video_on_position_changed(position)
             player.stop()
             self.player_widget.slider.setValue(0)
@@ -1065,7 +1078,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def next_video(self):
         self.active_playlist.get_next_video()
-        self.play_video()
+        if self.current_video:
+            self.play_video()
 
     def next_video_if_end(self,status):
         if status == QtMultimedia.QMediaPlayer.MediaStatus.EndOfMedia and self.active_playlist.get_next_video()[0]:
@@ -1074,23 +1088,36 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def previous_video(self):
         self.active_playlist.get_previous_video()
-        self.play_video()
+        if self.current_video:
+            self.play_video()
 
     def play_video(self):
+        if not self.current_video:
+            return
+        if not self.player_widget.player_ready:
+            self.player_widget.ensure_player_ready(self.play_video)
+            return
         player = self.player_widget.video_player
+        if player is None:
+            return
         video_url = QtCore.QUrl.fromLocalFile(str(self.current_video.file_path))
         player.setSource(video_url)
         player.play()
         self.init_interface()
 
     def init_interface(self):
+        if not self.current_video or not self.player_widget.player_ready:
+            return
+        player = self.player_widget.video_player
+        if player is None:
+            return
         #init status bar
-        total_time = self.player_widget.position_to_hms(self.player_widget.video_player.duration())
+        total_time = self.player_widget.position_to_hms(player.duration())
         self.toolbar_widget.time_label.set_times(total_time=total_time)
         # init volume widget
         self.toolbar_widget.volume_widget.update_button_icon()
         if 1000 < self.current_video.state.position < self.current_video.state.duration:
-            self.player_widget.video_player.setPosition(self.current_video.state.position)
+            player.setPosition(self.current_video.state.position)
         self.dock_widget.set_current_video(self.current_video.name)
 
     def double_click(self,item):
@@ -1116,7 +1143,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Si aucun état n'est fourni, obtenir l'état actuel du player
         if not state:
-            state = self.player_widget.video_player.playbackState()
+            player = self.player_widget.video_player
+            if player is None:
+                self.toolbar_widget.player_controls.btn_play_pause_tooltip()
+                return
+            state = player.playbackState()
 
         # Gestion des différents états
         if state == QtMultimedia.QMediaPlayer.PlaybackState.PlayingState:
@@ -1150,6 +1181,8 @@ class MainWindow(QtWidgets.QMainWindow):
         pass
 
     def player_mute_if_clicked(self):
+        if not self.current_video:
+            return
         self.player_widget.set_muted(not self.current_video.state.muted)
         if self.current_video.state.muted :
             self.toolbar_widget.volume_widget.btn.setText("\ue04f")
