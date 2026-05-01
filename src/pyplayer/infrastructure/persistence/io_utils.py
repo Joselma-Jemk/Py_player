@@ -39,3 +39,31 @@ def write_json_atomic(
     finally:
         if temp_path.exists():
             temp_path.unlink(missing_ok=True)
+
+
+def write_json_fast(
+    file_path: Path,
+    data: object,
+    *,
+    indent: int = 2,
+    ensure_ascii: bool = False,
+) -> None:
+    """Fast JSON write without fsync - for small volatile configs.
+
+    Skips fsync for performance. Safe for config files where loss of latest
+    write is acceptable (OS will flush naturally within seconds).
+    """
+    target_path = Path(file_path)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+
+    temp_path = target_path.with_name(f".{target_path.name}.tmp-{uuid4().hex}")
+
+    try:
+        with open(temp_path, "w", encoding="utf-8") as temp_file:
+            json.dump(data, temp_file, indent=indent, ensure_ascii=ensure_ascii)
+            temp_file.flush()
+
+        temp_path.replace(target_path)
+    finally:
+        if temp_path.exists():
+            temp_path.unlink(missing_ok=True)

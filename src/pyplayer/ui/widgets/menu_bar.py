@@ -48,11 +48,8 @@ class MenuBarWidget(QtWidgets.QMenuBar):
         self.setup_connection()
 
     def icon_font_initialize(self, size=15):
-        font_path = find_path("material-symbols-outlined.ttf", safe=True)
-        if font_path and Path(font_path).exists():
-            font_id = QtGui.QFontDatabase.addApplicationFont(str(font_path))
-            self.icon_font = QtGui.QFont(QtGui.QFontDatabase.applicationFontFamilies(font_id)[0])
-            self.icon_font.setPointSize(size)
+        from src.pyplayer.ui.theme.fonts import get_icon_font
+        self.icon_font = get_icon_font(size)
 
     def customize_self(self):
         self.setMinimumHeight(28)

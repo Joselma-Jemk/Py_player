@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from src.pyplayer.infrastructure.persistence.io_utils import write_json_atomic
+from src.pyplayer.infrastructure.persistence.io_utils import write_json_fast
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class LastPlayedStore:
                 "playlist_id": playlist_id,
                 "timestamp": datetime.now().isoformat(),
             }
-            write_json_atomic(self.file_path, data, indent=2, ensure_ascii=False)
+            write_json_fast(self.file_path, data, indent=2, ensure_ascii=False)
             logger.debug("Derniere playlist sauvegardee")
         except Exception as error:
             logger.error("Erreur sauvegarde derniere playlist: %s", error)

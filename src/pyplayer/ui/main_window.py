@@ -40,6 +40,10 @@ class MainWindow(QtWidgets.QMainWindow):
         super().__init__()
         self.manager = PlaylistManager()
         self.icon_font = None
+        # Batching timers for position updates
+        self._position_save_timer = None
+        self._pending_position = None
+        self._position_update_ui_timer = None
         self.setup_ui()
 
     def setup_ui(self):
@@ -47,14 +51,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.create_widgets()
         self.modify_widgets()
         self.setup_connections()
-        self.initialize_playlist_state()
+        # Defer playlist state initialization to after first paint
+        QtCore.QTimer.singleShot(0, self.initialize_playlist_state)
         pass
 
     def icon_font_initialize(self, size=15):
-        dir = find_path("material-symbols-outlined.ttf")
-        font_id = QtGui.QFontDatabase.addApplicationFont(str(dir))
-        self.icon_font = QtGui.QFont(QtGui.QFontDatabase.applicationFontFamilies(font_id)[0])
-        self.icon_font.setPointSize(size)
+        from src.pyplayer.ui.theme.fonts import get_icon_font
+        self.icon_font = get_icon_font(size)
         pass
 
     def customize_self(self):
@@ -124,20 +127,26 @@ class MainWindow(QtWidgets.QMainWindow):
         self.toolbar_widget.volume_widget.btn.clicked.connect(self.player_mute_if_clicked)
         self.toolbar_widget.volume_widget.slider.valueChanged.connect(self.update_volume_change)
 
-
-        #Player
+        # Player signals (signal_double_click doesn't require player initialization)
         self.player_widget.signal_double_click.connect(self.play_or_pause)
-        self.player_widget.signal_double_click.connect(self.btn_play_pause_update)
+        # Removed redundant btn_play_pause_update connection here - handled by player signals
+
+        # Player initialized signal - decoupled from parent call
+        self.player_widget.player_initialized.connect(self._setup_player_connections)
+        pass
+
+    def _setup_player_connections(self):
+        """Connect player signals (called via player_initialized signal)."""
         self.player_widget.video_player.mediaStatusChanged.connect(self.btn_play_pause_update)
         self.player_widget.video_player.mediaStatusChanged.connect(self.playlist_play_mode_update)
         self.player_widget.video_player.mediaStatusChanged.connect(self.next_video_if_end)
         self.player_widget.video_player.mediaStatusChanged.connect(self.current_video_update_metadata)
         self.player_widget.video_player.playbackStateChanged.connect(self.on_playback_state_changed)
         self.player_widget.video_player.playbackStateChanged.connect(self.bloc_stop_btn)
-        self.player_widget.video_player.playbackStateChanged.connect(self.btn_play_pause_update)
-        self.player_widget.video_player.positionChanged.connect(self.save_video_on_position_changed)
+        # Removed redundant btn_play_pause_update connection here (already connected to mediaStatusChanged)
+        # Use throttled version for positionChanged (30-60x/s → 1/2s)
+        self.player_widget.video_player.positionChanged.connect(self._on_position_changed_throttled)
         self.player_widget.video_player.positionChanged.connect(self.update_time_label)
-        pass
 
     ##################### END UI ######################
 
@@ -197,9 +206,9 @@ class MainWindow(QtWidgets.QMainWindow):
         )
 
         video_list = self.active_playlist.add_video_from_dir_path(Path(dir_path))
-        for video in video_list:
-            self.active_playlist.auto_save()
-            self.dock_widget.add_video_to_playlist(video)
+        # Batch add with single auto_save at the end
+        self.dock_widget.add_videos_to_playlist_batch(video_list)
+        self.active_playlist.auto_save()
         return True
 
     def playlist_show_or_hide(self):
@@ -800,7 +809,9 @@ class MainWindow(QtWidgets.QMainWindow):
         return []
 
     def initialize_playlist_state(self):
-        for name,item in self.manager.all_playlist.items() :
+        # Make a copy to avoid dictionary changed size during iteration
+        playlists = dict(self.manager.all_playlist)
+        for name, item in playlists.items():
             self.dock_widget.add_playlist_state(item)
             self.dock_widget.set_active_playlist(self.manager.active_playlist)
             self.initialize_playlist()
@@ -928,20 +939,66 @@ class MainWindow(QtWidgets.QMainWindow):
         pass
 
     def save_video_on_position_changed(self, position):
-        """Appelé par positionChanged du player."""
+        """Sauvegarde l'état de la vidéo (appelé via timer throttlé)."""
         # Ignorer les premières positions au démarrage pour éviter les boucles
         if position < 2000:  # 2 secondes
             return
 
         player_widget = self.player_widget
+
+        # Get volume and muted state, with fallback to manager/current video state
+        if player_widget._player_initialized and player_widget._audio_output is not None:
+            volume = player_widget.audio_output.volume()
+            muted = player_widget.audio_output.isMuted()
+        else:
+            # Use manager's stored volume and current video's mute state
+            volume = self.manager.volume
+            muted = self.current_video.state.muted if self.current_video else False
+
         self.active_playlist.update_current_video_state(
             position=position,
             playing=player_widget.video_player.isPlaying(),
-            volume=player_widget.audio_output.volume(),
-            muted=player_widget.audio_output.isMuted()
+            volume=volume,
+            muted=muted
         )
-        self.dock_widget.update_video_progress(self.current_video.name)
+        # Removed: self.dock_widget.update_video_progress() - handled separately with its own timer
         return
+
+    def _on_position_changed_throttled(self, position):
+        """Sauvegarde throttlée de la position (toutes les 2 secondes max)."""
+        self._pending_position = position
+
+        if self._position_save_timer is None:
+            self._position_save_timer = QtCore.QTimer(self)
+            self._position_save_timer.setSingleShot(True)
+            self._position_save_timer.timeout.connect(self._flush_position_save)
+
+        if not self._position_save_timer.isActive():
+            self._position_save_timer.start(2000)  # 2 secondes
+
+    def _flush_position_save(self):
+        """Sauvegarde effective de la position et mise à jour UI throttlée."""
+        if self._pending_position is not None:
+            self.save_video_on_position_changed(self._pending_position)
+            # Update UI progress throttlé (500ms)
+            self._update_video_progress_throttled(self._pending_position)
+            self._pending_position = None
+
+    def _update_video_progress_throttled(self, position):
+        """Mise à jour UI throttlée (toutes les 500ms)."""
+        if self.current_video:
+            if self._position_update_ui_timer is None:
+                self._position_update_ui_timer = QtCore.QTimer(self)
+                self._position_update_ui_timer.setSingleShot(True)
+                self._position_update_ui_timer.timeout.connect(self._do_update_video_progress)
+
+            if not self._position_update_ui_timer.isActive():
+                self._position_update_ui_timer.start(500)  # 500ms
+
+    def _do_update_video_progress(self):
+        """Effectue la mise à jour UI de progression."""
+        if self.current_video:
+            self.dock_widget.update_video_progress(self.current_video.name)
 
     # ============================================
     # MÉTHODES DE GESTION DES LECTURES
@@ -1093,7 +1150,7 @@ class MainWindow(QtWidgets.QMainWindow):
         pass
 
     def player_mute_if_clicked(self):
-        self.player_widget.audio_output.setMuted(not self.current_video.state.muted)
+        self.player_widget.set_muted(not self.current_video.state.muted)
         if self.current_video.state.muted :
             self.toolbar_widget.volume_widget.btn.setText("\ue04f")
             return
@@ -1101,7 +1158,7 @@ class MainWindow(QtWidgets.QMainWindow):
         pass
 
     def update_volume_change(self,value):
-        self.player_widget.audio_output.setVolume(value/100)
+        self.player_widget.set_volume(value/100)
         self.manager.volume = value/100
         pass
 

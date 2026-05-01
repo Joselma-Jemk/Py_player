@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -32,15 +33,15 @@ class Playlist:
         self.videos: List[Video] = []
         self.description = None
         self._save_file_path: Optional[Path] = None
-        self.p_state = PlaylistState(
-            playlist_id=self.unique_id,
-            total_videos=len(self.videos),
-            total_duration=self.total_duration,
-        )
         self._current_index = -1
         self._shuffle_order: List[int] = []
         self._shuffle_position = -1
         self._shuffle_history: List[int] = []
+        self.p_state = PlaylistState(
+            playlist_id=self.unique_id,
+            total_videos=len(self.videos),
+            total_duration=0,
+        )
 
         if video_path and video_path.exists():
             if video_path.is_dir():
@@ -73,6 +74,10 @@ class Playlist:
     @property
     def total_duration(self) -> int:
         return sum(video.duration for video in self.videos if video.duration > 0)
+
+    def _invalidate_duration_cache(self) -> None:
+        """Placeholder for future optimization if needed."""
+        pass
 
     @property
     def current_index(self) -> int:
@@ -196,8 +201,16 @@ class Playlist:
         self._auto_save_if_needed()
         return True
 
+    # Class-level constant for auto-save throttle
+    AUTO_SAVE_COOLDOWN: float = 2.0  # seconds
+
     def _auto_save_if_needed(self) -> None:
         if self._save_file_path and self._save_file_path.parent.exists():
+            # Throttle: skip if saved recently
+            now = time.monotonic()
+            if hasattr(self, "_last_auto_save") and (now - self._last_auto_save) < self.AUTO_SAVE_COOLDOWN:
+                return
+            self._last_auto_save = now
             try:
                 self.save_to_file(self._save_file_path, create_backup=False)
             except Exception as e:
@@ -350,6 +363,7 @@ class Playlist:
 
             video = Video(file_path)
             self.videos.append(video)
+            self._invalidate_duration_cache()
             self.p_state.total_videos = self.total
             self.p_state.total_duration = self.total_duration
             self._auto_save_if_needed()
@@ -378,6 +392,7 @@ class Playlist:
                                 self._shuffle_position = -1
 
                     del self.videos[identifier]
+                    self._invalidate_duration_cache()
                     self.p_state.total_videos = self.total
                     self.p_state.total_duration = self.total_duration
                     self._auto_save_if_needed()
@@ -400,6 +415,9 @@ class Playlist:
                                 self._shuffle_position = -1
 
                     del self.videos[i]
+                    self._invalidate_duration_cache()
+                    self.p_state.total_videos = self.total
+                    self.p_state.total_duration = self.total_duration
                     self._auto_save_if_needed()
                     return True
             return False
@@ -416,6 +434,7 @@ class Playlist:
 
             video = self.videos.pop(from_index)
             self.videos.insert(to_index, video)
+            self._invalidate_duration_cache()  # Duration unchanged but state updated
 
             if self._current_index == from_index:
                 self._current_index = to_index
@@ -651,6 +670,7 @@ class Playlist:
             was_playing = False
 
         self.videos.clear()
+        self._invalidate_duration_cache()
         self._current_index = -1
 
         if hasattr(self, "_shuffle_order"):

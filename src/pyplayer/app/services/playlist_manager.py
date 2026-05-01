@@ -5,7 +5,9 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
+
+from PySide6 import QtCore
 
 from src.pyplayer.app.services.playlist_registry import PlaylistRegistry
 from src.pyplayer.domain.playlist import Playlist
@@ -32,6 +34,7 @@ class PlaylistManager:
         config_store: Optional[ManagerConfigStore] = None,
         last_played_store: Optional[LastPlayedStore] = None,
         backup_cleaner: Optional[BackupCleaner] = None,
+        synchronous: bool = False,
     ):
         if data_dir:
             self.data_dir = Path(data_dir)
@@ -54,18 +57,31 @@ class PlaylistManager:
         self._last_played_id: Optional[str] = None
         self._active_playlist_id: Optional[str] = None
 
+        # Loading state tracking
+        self._loading_state = "initializing"
+        self._playlists_loaded = False
+        self._loading_callback: Optional[Callable[[], None]] = None
+        self._synchronous = synchronous
+
         self._load_config()
-        self._load_all_playlists()
 
-        self._backup_cleaner.auto_cleanup_backups_if_needed(threshold_count=5)
-
-        if self.playlist_count == 0:
-            self.create_playlist(name="PLAYLIST")
-
-        if self.active_playlist is None:
-            for playlist_id, playlist in self._registry.iterate_items():
-                self.set_active_playlist_by_name(playlist.name)
-                break
+        if synchronous:
+            # Legacy behavior: load synchronously
+            self._load_all_playlists()
+            self._backup_cleaner.auto_cleanup_backups_if_needed(threshold_count=5)
+            # Ensure default playlist exists after loading
+            if self.playlist_count == 0:
+                self.create_playlist(name="PLAYLIST")
+            # Set initial active playlist
+            if self.active_playlist is None:
+                for playlist_id, playlist in self._registry.iterate_items():
+                    self.set_active_playlist_by_name(playlist.name)
+                    break
+        else:
+            # New behavior: defer loading to background
+            self._ensure_default_playlist()
+            self._set_initial_active_playlist()
+            self._schedule_background_load()
 
         logger.info(
             "PlaylistManager initialise: %s playlists chargees",
@@ -359,6 +375,57 @@ class PlaylistManager:
     def _load_all_playlists(self) -> None:
         for playlist in self._repository.load_all():
             self._registry.add(playlist)
+        self._playlists_loaded = True
+        self._loading_state = "loaded"
+
+    def _ensure_default_playlist(self) -> None:
+        """Ensure at least one playlist exists."""
+        if self.playlist_count == 0:
+            self.create_playlist(name="PLAYLIST")
+
+    def _set_initial_active_playlist(self) -> None:
+        """Set initial active playlist if none is selected."""
+        if self.active_playlist is None:
+            for playlist_id, playlist in self._registry.iterate_items():
+                self.set_active_playlist_by_name(playlist.name)
+                break
+
+    def _schedule_background_load(self) -> None:
+        """Schedule playlist loading to run after first paint."""
+        self._loading_state = "loading"
+        QtCore.QTimer.singleShot(0, self._load_all_playlists_async)
+
+    def _load_all_playlists_async(self) -> None:
+        """Load all playlists in background without blocking UI."""
+        try:
+            # Load playlists (fast path without validation)
+            for playlist in self._repository.load_all():
+                self._registry.add(playlist)
+
+            self._playlists_loaded = True
+            self._loading_state = "loaded"
+
+            # Schedule deferred operations
+            QtCore.QTimer.singleShot(100, self._cleanup_backups_async)
+
+            # Notify callback if set
+            if self._loading_callback:
+                self._loading_callback()
+
+            logger.info(
+                "Playlists chargees en arriere-plan: %s playlists",
+                self.playlist_count,
+            )
+        except Exception as error:
+            logger.error("Erreur chargement asynchrone: %s", error)
+            self._loading_state = "error"
+
+    def _cleanup_backups_async(self) -> None:
+        """Run backup cleanup after UI is fully responsive."""
+        try:
+            self._backup_cleaner.auto_cleanup_backups_if_needed(threshold_count=5)
+        except Exception as error:
+            logger.error("Erreur cleanup backups asynchrone: %s", error)
 
     def _generate_filename(self, base_name: str) -> str:
         return self._repository.generate_filename(base_name)

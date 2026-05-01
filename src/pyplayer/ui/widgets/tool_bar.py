@@ -251,10 +251,8 @@ class PlayerControlsWidget(QtWidgets.QWidget):
         self.setup_connections()
 
     def icon_font_initialize(self, size=14):
-        font_dir = find_path("material-symbols-outlined.ttf")
-        font_id = QtGui.QFontDatabase.addApplicationFont(str(font_dir))
-        self.icon_font = QtGui.QFont(QtGui.QFontDatabase.applicationFontFamilies(font_id)[0])
-        self.icon_font.setPointSize(size)
+        from src.pyplayer.ui.theme.fonts import get_icon_font
+        self.icon_font = get_icon_font(size)
 
     def create_widgets(self):
         self.btn_play_pause = QtWidgets.QPushButton("\ue037")

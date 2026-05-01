@@ -26,7 +26,7 @@ class TestPlaylistManagerCreation(unittest.TestCase):
 
     def test_creation_with_temp_data_dir(self):
         """Test creating PlaylistManager with a temp data directory."""
-        manager = PlaylistManager(data_dir=self.temp_path)
+        manager = PlaylistManager(data_dir=self.temp_path, synchronous=True)
         self.assertIsNotNone(manager)
         self.assertEqual(manager.data_dir, self.temp_path)
         self.assertIsInstance(manager._registry, PlaylistRegistry)
@@ -53,7 +53,7 @@ class TestPlaylistManagerCreation(unittest.TestCase):
 
     def test_auto_playlist_creation(self):
         """Test that PlaylistManager creates a playlist when created with no playlists."""
-        manager = PlaylistManager(data_dir=self.temp_path)
+        manager = PlaylistManager(data_dir=self.temp_path, synchronous=True)
         self.assertGreater(manager.playlist_count, 0)
 
         active = manager.active_playlist
@@ -67,7 +67,7 @@ class TestPlaylistManagerPlaylistOperations(unittest.TestCase):
         """Set up temp directory for file operations."""
         self.temp_dir = tempfile.TemporaryDirectory()
         self.temp_path = Path(self.temp_dir.name)
-        self.manager = PlaylistManager(data_dir=self.temp_path)
+        self.manager = PlaylistManager(data_dir=self.temp_path, synchronous=True)
 
     def tearDown(self):
         """Clean up temp directory."""
@@ -176,7 +176,7 @@ class TestPlaylistManagerConfigPersistence(unittest.TestCase):
         """Set up temp directory for file operations."""
         self.temp_dir = tempfile.TemporaryDirectory()
         self.temp_path = Path(self.temp_dir.name)
-        self.manager = PlaylistManager(data_dir=self.temp_path)
+        self.manager = PlaylistManager(data_dir=self.temp_path, synchronous=True)
 
     def tearDown(self):
         """Clean up temp directory."""
@@ -190,6 +190,8 @@ class TestPlaylistManagerConfigPersistence(unittest.TestCase):
     def test_config_file_created(self):
         """Test that config file is created."""
         config_file = self.temp_path / "manager_config.json"
+        # Config file is created on first save
+        self.manager.volume = 0.5  # Trigger save
         self.assertTrue(config_file.exists())
 
 
@@ -200,7 +202,7 @@ class TestPlaylistManagerBackupStats(unittest.TestCase):
         """Set up temp directory for file operations."""
         self.temp_dir = tempfile.TemporaryDirectory()
         self.temp_path = Path(self.temp_dir.name)
-        self.manager = PlaylistManager(data_dir=self.temp_path)
+        self.manager = PlaylistManager(data_dir=self.temp_path, synchronous=True)
 
     def tearDown(self):
         """Clean up temp directory."""
@@ -244,7 +246,7 @@ class TestPlaylistManagerActivePlaylist(unittest.TestCase):
         """Set up temp directory for file operations."""
         self.temp_dir = tempfile.TemporaryDirectory()
         self.temp_path = Path(self.temp_dir.name)
-        self.manager = PlaylistManager(data_dir=self.temp_path)
+        self.manager = PlaylistManager(data_dir=self.temp_path, synchronous=True)
 
     def tearDown(self):
         """Clean up temp directory."""

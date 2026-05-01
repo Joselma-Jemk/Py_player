@@ -229,3 +229,69 @@
   - `python3 -m unittest tests/test_atomic_save -v` → `OK (3 tests)`
   - compilation ciblée `py_compile` OK sur les fichiers modifiés
   - sanity check runtime playlist/manager JSON OK.
+
+---
+
+## Feuille de route — Optimisation extrême
+
+### Principe
+
+- Ne pas optimiser "à l'aveugle".
+- Mesurer d'abord les vrais hotspots.
+- Découper les optimisations par couches pour limiter les régressions.
+
+### Ordre de travail recommandé
+
+1. **Profiling réel avant optimisation**
+   - Démarrage de l'application
+   - Chargement des playlists au boot
+   - Ajout massif de vidéos
+   - Navigation playlist (`NORMAL`, `LOOP_ONE`, `LOOP_ALL`, `SHUFFLE`)
+   - Rafraîchissements UI
+   - Sauvegardes auto
+   - Recherche / tri / filtres
+
+2. **Optimisations domaine / services**
+   - `Playlist`
+   - `PlaylistManager`
+   - persistance JSON
+   - scans de dossiers
+   - recherches dans playlists
+   - auto-save trop fréquent éventuel
+
+3. **Optimisations UI / runtime Qt**
+   - listes playlist / vidéos
+   - refresh inutiles
+   - signaux Qt redondants
+   - rechargements d'icônes / polices
+   - updates widgets trop fréquents
+   - coût d'initialisation de la fenêtre
+
+4. **Optimisations I/O**
+   - lecture / écriture fichiers
+   - atomic save
+   - backups
+   - scans `Path.glob`
+   - chargement des ressources
+
+5. **Optimisations mémoire / allocations**
+   - cycle de vie des objets `Video`
+   - historique shuffle
+   - copies inutiles
+   - sérialisation / désérialisation
+
+6. **Micro-optimisations finales**
+   - caches ciblés
+   - réduction d'allocations chaudes
+   - suppressions de branches / conversions inutiles
+
+### Découpage en prompts
+
+- **Prompt 1** : instrumentation + profiling + identification des hotspots
+- **Prompt 2** : optimisation backend / domaine / services
+- **Prompt 3** : optimisation UI / runtime Qt
+- **Prompt 4** : passe finale I/O + mémoire + micro-optimisations
+
+### En cours maintenant
+
+- [ ] Prompt 1 — Instrumentation et profiling réel

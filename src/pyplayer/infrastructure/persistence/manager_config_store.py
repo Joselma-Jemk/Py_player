@@ -7,7 +7,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from src.pyplayer.infrastructure.persistence.io_utils import write_json_atomic
+from src.pyplayer.infrastructure.persistence.io_utils import write_json_fast
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ class ManagerConfigStore:
                 "last_played_id": last_played_id,
                 "active_playlist_id": active_playlist_id,
             }
-            write_json_atomic(self.config_file, config, indent=2, ensure_ascii=False)
+            write_json_fast(self.config_file, config, indent=2, ensure_ascii=False)
             logger.debug("Configuration sauvegardee")
         except Exception as error:
             logger.error("Erreur sauvegarde configuration: %s", error)

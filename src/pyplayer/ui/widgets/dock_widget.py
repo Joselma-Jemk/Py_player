@@ -184,10 +184,8 @@ class DockWidget(QtWidgets.QDockWidget):
         self.setMinimumWidth(250)
 
     def icon_font_initialize(self, size=14):
-        font_path = find_path("material-symbols-outlined.ttf")
-        font_id = QtGui.QFontDatabase.addApplicationFont(str(font_path))
-        self.icon_font = QtGui.QFont(QtGui.QFontDatabase.applicationFontFamilies(font_id)[0])
-        self.icon_font.setPointSize(size)
+        from src.pyplayer.ui.theme.fonts import get_icon_font
+        self.icon_font = get_icon_font(size)
 
     def create_widgets(self):
         self.main_widget = QtWidgets.QWidget()
@@ -521,6 +519,34 @@ class DockWidget(QtWidgets.QDockWidget):
 
         return True
 
+    def add_videos_to_playlist_batch(self, videos: list) -> int:
+        """Ajoute plusieurs vidéos en une seule opération optimisée."""
+        self.lstw.setUpdatesEnabled(False)
+        self.lstw.blockSignals(True)
+
+        try:
+            added = 0
+            existing_names = {
+                self.lstw.item(i).name for i in range(self.lstw.count())
+                if isinstance(self.lstw.item(i), VideoListItem)
+            }
+
+            for video in videos:
+                if not video or not hasattr(video, "name"):
+                    continue
+                if video.name not in existing_names:
+                    index = self.lstw.count() + 1
+                    item = VideoListItem(index, video)
+                    self.lstw.addItem(item)
+                    self.lstw.setItemWidget(item, item.container)
+                    existing_names.add(video.name)
+                    added += 1
+
+            return added
+        finally:
+            self.lstw.blockSignals(False)
+            self.lstw.setUpdatesEnabled(True)
+
     def remove_video_from_playlist(self, video_name: str) -> bool:
         for i in range(self.lstw.count()):
             item = self.lstw.item(i)
@@ -532,11 +558,18 @@ class DockWidget(QtWidgets.QDockWidget):
         return False
 
     def reindex_video_items(self):
-        for i in range(self.lstw.count()):
-            item = self.lstw.item(i)
-            if isinstance(item, VideoListItem):
-                item.index = i + 1
-                item.update_display()
+        """Optimisé : met à jour les index sans recalcul de styles inutiles."""
+        self.lstw.setUpdatesEnabled(False)
+        try:
+            for i in range(self.lstw.count()):
+                item = self.lstw.item(i)
+                if isinstance(item, VideoListItem):
+                    item.index = i + 1
+                    # Ne mettre à jour que le texte, pas les styles (apply_style appelé inutilement)
+                    main_text = f"{item.index} {item.SEPARATOR_ICON}  {item.name}"
+                    item.text_label.setText(main_text)
+        finally:
+            self.lstw.setUpdatesEnabled(True)
 
     def set_current_video(self, video_name: str) -> bool:
         found_current = False

@@ -47,7 +47,7 @@ class AtomicSaveTests(unittest.TestCase):
 
     def test_manager_save_config_preserves_original_on_dump_failure(self) -> None:
         """PlaylistManager._save_config must not corrupt manager_config.json."""
-        manager = PlaylistManager(data_dir=self.temp_dir)
+        manager = PlaylistManager(data_dir=self.temp_dir, synchronous=True)
         manager.volume = 0.33
 
         config_path = self.temp_dir / "manager_config.json"
