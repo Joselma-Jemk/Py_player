@@ -13,36 +13,15 @@ class TestMainWindowSmoke(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Set up QApplication once for all tests."""
-        from PySide6 import QtWidgets, QtCore
+        from PySide6 import QtWidgets
 
         cls.app = QtWidgets.QApplication.instance()
         if cls.app is None:
             cls.app = QtWidgets.QApplication(sys.argv)
 
-    def test_instantiate_from_pyplayer_ui(self):
+    def test_instantiate_main_window(self):
         """Test MainWindow from src.pyplayer.ui.main_window instantiates."""
         from src.pyplayer.ui.main_window import MainWindow
-
-        window = MainWindow()
-        self.assertIsNotNone(window)
-
-        self.assertTrue(hasattr(window, "menuBar"))
-        self.assertTrue(callable(window.menuBar))
-
-        self.assertTrue(hasattr(window, "centralWidget"))
-        self.assertTrue(callable(window.centralWidget))
-
-        self.assertTrue(hasattr(window, "dock_widget"))
-
-        self.assertTrue(hasattr(window, "statusBar"))
-        self.assertTrue(callable(window.statusBar))
-
-        window.close()
-        del window
-
-    def test_instantiate_from_main_python_ui(self):
-        """Test MainWindow from src.main.python.ui.main_window instantiates."""
-        from src.main.python.ui.main_window import MainWindow
 
         window = MainWindow()
         self.assertIsNotNone(window)

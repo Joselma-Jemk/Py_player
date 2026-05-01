@@ -4,3 +4,4 @@
 .Setup/
 __pycache__/
 *.py[cod]
+.claude/
