@@ -1,11 +1,5 @@
-from PySide6 import QtGui, QtCore, QtWidgets
+"""Legacy wrapper — ré-export depuis le nouveau namespace."""
 
-class StatusBar(QtWidgets.QStatusBar):
+from src.pyplayer.ui.widgets.statusbar_widget import StatusBar
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.lbl_title=QtWidgets.QLabel()
-        self.lbl_title.setText("   Pas de média en cours")
-        self.lbl_title.setFixedWidth(800)
-        self.lbl_title.setFixedHeight(40)
-        self.addWidget(self.lbl_title)
+__all__ = ["StatusBar"]

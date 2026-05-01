@@ -2,3 +2,5 @@
 .dist/main.dist/
 .dist/main.build/
 .Setup/
+__pycache__/
+*.py[cod]
