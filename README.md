@@ -102,7 +102,7 @@ pour le média **réellement chargé**.
 
 ```bash
 pip install -e ".[dev]"
-pytest                              # 236 tests, 93 % de couverture (voir docs/TESTING.md)
+pytest                              # 287 tests, 94 % de couverture (voir docs/TESTING.md)
 PYPLAYER_THOROUGH=1 pytest          # ×10 exemples pour les tests à base de propriétés
 pytest --cov=pyplayer
 python -m pyflakes src

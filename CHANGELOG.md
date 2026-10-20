@@ -31,8 +31,8 @@ performances sont reprises en profondeur, et de nouvelles fonctions de lecteur �
 * Package `pyplayer` installable (`pyproject.toml`, commande `pyplayer`), journal tournant, CI GitHub Actions.
 
 ### Tests
-* 236 tests, 93 % de couverture : API, UI hors écran avec lecture réelle (ffmpeg), propriétés (Hypothesis), pannes
-  (SIGKILL, disque plein, corruption), migration depuis de vrais fichiers v1, stress de l'UI, paquet ; outil de test de mutation (mesure à relancer).
+* 287 tests, 94 % de couverture : API, UI hors écran avec lecture réelle (ffmpeg), propriétés (Hypothesis), pannes
+  (SIGKILL, disque plein, corruption), migration depuis de vrais fichiers v1, stress de l'UI, paquet ; test de mutation (148/150 = 99 %). État de lecture explicite et testable seul (`api/playback.py`).
   Voir `docs/TESTING.md`.
 
 ## 0.1.0

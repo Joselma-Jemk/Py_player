@@ -1,8 +1,8 @@
 # Statut des corrections — version 0.2.0
 
 Chaque point de l'audit ci-dessous a été corrigé **et** couvert par au moins un test automatisé (nom du test indiqué).
-Suite complète : 236 tests (235 exécutés + 1 variante selon la présence d'un périphérique audio), 3 exécutions consécutives sans échec,
-93 % de couverture, mode approfondi (1 500 exemples) vert ; test de mutation : harnais corrigé, mesure à relancer (voir `docs/TESTING.md`).
+Suite complète : 287 tests (286 exécutés + 1 variante selon la présence d'un périphérique audio), sans échec,
+94 % de couverture, mode approfondi (1 500 exemples) vert ; test de mutation : 148/150 = 99 % (2 mutants équivalents, voir `docs/TESTING.md`).
 Le détail des anomalies d'origine reste plus bas dans ce document, inchangé.
 
 | # | Statut | Correction | Test(s) qui le protègent |

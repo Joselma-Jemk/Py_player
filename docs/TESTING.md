@@ -1,6 +1,6 @@
 # Stratégie de tests
 
-236 tests, **93 % de couverture** (branches comprises) mesurée sur `pyplayer`, exécutés hors écran
+287 tests, **94 % de couverture** (branches comprises) mesurée sur `pyplayer`, exécutés hors écran
 (`QT_QPA_PLATFORM=offscreen`) avec de **vrais médias** générés par ffmpeg. Durée : ~1 min 30.
 
 ```bash
@@ -39,9 +39,13 @@ constantes, `if` inversés, `return` neutralisés, instructions supprimées), re
 Le harnais se vérifie lui-même avant de mesurer : il contrôle que `pyplayer` est bien importé depuis la copie mutée,
 que la suite réussit sur le code intact et qu'un mutant évident est tué.
 
-> **Résultats : à mesurer.** Une première version du harnais chargeait le vrai code au lieu du code muté
-> (`conftest.py` plaçait `src` en tête du chemin) ; ses scores (99 %/100 %) étaient **invalides** et ont été écartés.
-> Le harnais est corrigé ; la campagne de mesure (150 mutants) doit être relancée et ses survivants traités.
+> **Résultats mesurés** (150 mutants tirés au hasard sur 826, `--sample 150 --seed 3`) : 1re mesure valide
+> **143/150 = 95 %** ; après ajout des tests ciblant les 7 survivants, **148/150 = 99 %**.
+> Les 2 survivants restants sont des **mutants équivalents** (aucun comportement observable ne change) :
+> `video.py:71` (`width > 0` → `>= 0` : `0 / h` vaut déjà `0.0`) et `playlist.py:304` (`remember=True` alors qu'il n'y a
+> pas de vidéo courante à mémoriser).
+> Une première version du harnais chargeait le vrai code au lieu du code muté (`conftest.py` plaçait `src` en tête du
+> chemin) ; ses scores d'alors étaient **invalides** et ont été écartés.
 
 ## Bugs trouvés *par* ces tests (et corrigés)
 
