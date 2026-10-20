@@ -114,6 +114,11 @@ coupure brutale (`SIGKILL`) en pleine écriture, disque plein, corruption aléat
 vrais fichiers de l'ancienne version, 8 séquences de 120 actions utilisateur aléatoires, clavier, glisser-déposer,
 instance unique et construction du paquet.
 
+## Aller plus loin
+
+`docs/ROADMAP.md` : fonctions à ajouter pour un lecteur plus « pro » (libmpv, réglages, lecture de sites via yt-dlp, installateurs), avec sources.
+`docs/AUDIT_PYPLAYER.md` : audit initial et statut de chaque correction.
+
 ## Licence
 
 MIT — voir `Licence.txt`.

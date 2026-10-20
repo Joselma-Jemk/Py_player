@@ -11,6 +11,8 @@ pytest --cov=pyplayer --cov-report=term-missing
 python tools/mutation_check.py --sample 90 --seed 7     # test de mutation (voir plus bas)
 ```
 
+Voir aussi `docs/ROADMAP.md` (fonctions à ajouter, issues de la veille web).
+
 ## Ce qui est testé, par couche
 
 | Fichier | Rôle |
