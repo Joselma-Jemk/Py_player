@@ -116,7 +116,7 @@ instance unique et construction du paquet.
 
 ## Aller plus loin
 
-`docs/ROADMAP.md` : fonctions à ajouter pour un lecteur plus « pro » (libmpv, réglages, lecture de sites via yt-dlp, installateurs), avec sources.
+`docs/ROADMAP.md` : fonctions à ajouter pour un lecteur plus « pro » (libmpv, réglages, installateurs), avec sources.
 `docs/AUDIT_PYPLAYER.md` : audit initial et statut de chaque correction.
 
 ## Licence

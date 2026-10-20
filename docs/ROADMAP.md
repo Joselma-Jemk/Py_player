@@ -33,16 +33,12 @@ l'interface à celle de la vidéo (alternative : rendu dans un framebuffer sépa
 Intérêt supplémentaire : le blocage de Qt/FFmpeg observé pendant ce travail (`QMediaPlayer.stop()`,
 `setActiveAudioTrack` sans périphérique audio) disparaîtrait avec un backend différent.
 
-## Priorité 3 — lecture depuis des sites (YouTube, etc.)
-`Ctrl+U` ne lit que les **adresses directes** de fichiers ou de flux. Une page YouTube n'est pas un flux : il faut un
-extracteur. La pratique courante est d'utiliser **yt-dlp** pour obtenir l'adresse réelle du flux, puis de la donner au
-lecteur. Contraintes :
-* dépendance optionnelle (`pip install yt-dlp`), à tenir à jour car les sites changent ;
-* la valeur retournée par `extract_info` n'est pas garantie d'être un dictionnaire sérialisable : traitement défensif ;
-* **conditions d'utilisation des sites et droit d'auteur** : la veille n'a rien établi sur la légalité ; à vérifier avant
-  de livrer cette fonction.
+## Écarté : lecture depuis des sites (YouTube, etc.)
+Décision : **pas d'intégration de yt-dlp**. `Ctrl+U` reste limité aux adresses directes de fichiers ou de flux
+(`.mp4`, `.m3u8`, `rtsp://`…). Raisons : dépendance qui casse dès que les sites changent, et conditions d'utilisation
+des sites que la veille n'a pas pu trancher.
 
-## Priorité 4 — distribution
+## Priorité 3 — distribution
 Installateur Windows (PyInstaller + Inno Setup avec association des extensions), AppImage ou `.deb`, bundle `.app`
 macOS, signature de code, mise à jour automatique. Traduction (i18n) et accessibilité (lecteurs d'écran, contrastes).
 
@@ -56,4 +52,3 @@ fiable ; ces fonctions sont décrites ici d'après l'usage courant des lecteurs,
 * MPC-HC — [notes de version : boucle A-B, vitesse, reprise](https://www.neowin.net/amp/media-player-classic---home-cinema-270/)
 * VLC — [Adjustment & Effects](https://vlc-user-documentation.readthedocs.io/en/latest/settings/adjustmentsandeffects.html), [délai des sous-titres](https://forum.videolan.org/viewtopic.php?p=132013)
 * python-mpv — [PyPI](https://pypi.org/project/python-mpv/) ; [Qt Forum : libmpv dans Qt Quick](https://forum.qt.io/topic/149728/improve-rendering-performance-while-integrating-libmpv-with-qtquick-python)
-* yt-dlp — [intégration en Python](https://www.mintlify.com/yt-dlp/yt-dlp/advanced/embedding), [principe d'usage avec un lecteur](https://mcav.readthedocs.io/en/latest/library/yt-dlp.html)
