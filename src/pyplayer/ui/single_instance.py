@@ -31,6 +31,7 @@ class SingleInstance(QtCore.QObject):
         self._name = name or _server_name()
         self._server: QtNetwork.QLocalServer | None = None
         self._buffers: dict[int, bytearray] = {}   # id(socket) -> octets reçus
+        self._handled: set[int] = set()            # sockets dont le message a déjà été remis
 
     # ------------------------------------------------------------------ client
     def send_to_running(self, paths: list[str], enqueue: bool = False, timeout_ms: int = 800) -> bool:
@@ -40,9 +41,12 @@ class SingleInstance(QtCore.QObject):
             socket.connectToServer(self._name)
             if not socket.waitForConnected(timeout_ms):
                 return False
-            socket.write(json.dumps({"paths": paths, "enqueue": enqueue}).encode("utf-8"))
+            socket.write(json.dumps({"paths": paths, "enqueue": enqueue}).encode("utf-8") + b"\n")
             socket.flush()
             socket.waitForBytesWritten(timeout_ms)
+            # Attend l'accusé de réception : sous Windows, fermer le tube avant que le serveur ait lu fait perdre
+            # les données (« Ouvrir avec… » aurait alors ignoré des fichiers). Sans accusé (ancienne version), on continue.
+            socket.waitForReadyRead(timeout_ms)
             socket.disconnectFromServer()
             if socket.state() != QtNetwork.QLocalSocket.LocalSocketState.UnconnectedState:
                 socket.waitForDisconnected(timeout_ms)
@@ -65,6 +69,7 @@ class SingleInstance(QtCore.QObject):
             self._server.deleteLater()
             self._server = None
         self._buffers.clear()
+        self._handled.clear()
 
     def _on_connection(self) -> None:
         while self._server is not None and self._server.hasPendingConnections():
@@ -79,17 +84,29 @@ class SingleInstance(QtCore.QObject):
 
     def _on_ready_read(self, socket: QtNetwork.QLocalSocket) -> None:
         buffer = self._buffers.get(id(socket))
-        if buffer is not None:
-            buffer += bytes(socket.readAll().data())
+        if buffer is None:
+            return
+        buffer += bytes(socket.readAll().data())
+        if b"\n" in buffer and id(socket) not in self._handled:
+            self._handled.add(id(socket))                      # message complet : traité une seule fois
+            self._deliver(bytes(buffer))
+            socket.write(b"ok\n")                              # accusé : le client peut se déconnecter
+            socket.flush()
 
     def _on_disconnected(self, socket: QtNetwork.QLocalSocket) -> None:
         buffer = self._buffers.pop(id(socket), bytearray())
         buffer += bytes(socket.readAll().data())
+        handled = id(socket) in self._handled
+        self._handled.discard(id(socket))
         socket.deleteLater()                                   # unique point de suppression
+        if not handled:                                        # client sans terminateur (ancienne version) ou coupé net
+            self._deliver(bytes(buffer))
+
+    def _deliver(self, raw: bytes) -> None:
         try:
-            data = json.loads(bytes(buffer).decode("utf-8"))
+            data = json.loads(raw.decode("utf-8"))
             paths = [str(p) for p in data.get("paths", [])]
             enqueue = bool(data.get("enqueue", False))
-        except (ValueError, AttributeError, UnicodeDecodeError):
+        except (ValueError, AttributeError, UnicodeDecodeError, TypeError):
             return
         self.message_received.emit(paths, enqueue)

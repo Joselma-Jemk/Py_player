@@ -297,6 +297,8 @@ def test_info_reveal_logs_about_help_and_screenshot_without_media(window, monkey
     from pyplayer.ui import main_window as mw
     opened = []
     monkeypatch.setattr(QtGui.QDesktopServices, "openUrl", lambda url: opened.append(url.toLocalFile()) or True)
+    launched = []                                             # Windows/macOS : l'explorateur est lancé par un sous-processus
+    monkeypatch.setattr(mw.subprocess, "Popen", lambda args, *a, **k: launched.append(list(args)))
     shown = []
     monkeypatch.setattr(mw.MediaInfoDialog, "exec", lambda self: shown.append(self.findChildren(QtWidgets.QLabel)[0].text()) or 0)
     monkeypatch.setattr(mw.AboutDialog, "exec", lambda self: shown.append("about") or 0)
@@ -310,8 +312,11 @@ def test_info_reveal_logs_about_help_and_screenshot_without_media(window, monkey
     window.open_log_folder()
     window.about_pyplayer()
     window.show_help_dialog()
-    assert shown == ["v1.mp4", "about", "help"] and len(opened) == 2
-    assert Path(opened[0]) == window.active_playlist[1].parent
+    assert shown == ["v1.mp4", "about", "help"] and len(opened) + len(launched) == 2
+    if launched:                                              # Windows / macOS : le fichier est sélectionné dans l'explorateur
+        assert launched[0][-1] == str(window.active_playlist[1].path)
+    else:                                                     # Linux : on ouvre le dossier qui le contient
+        assert Path(opened[0]) == window.active_playlist[1].parent
     window.take_screenshot()
     assert "Aucune image" in window.statusBar().currentMessage()
 
