@@ -23,7 +23,7 @@ SRC = ROOT / "src"
 DEFAULT_FILES = ["playlist.py", "resume.py", "media.py", "settings.py", "manager.py", "m3u.py", "subtitles.py", "video.py"]
 FAST_TESTS = ["tests/test_media.py", "tests/test_playlist.py", "tests/test_manager.py", "tests/test_resume_settings_io.py",
               "tests/test_m3u.py", "tests/test_property_playlist.py", "tests/test_property_misc.py",
-              "tests/test_legacy_migration.py", "tests/test_crash_safety.py", "tests/test_mutation_gaps.py"]
+              "tests/test_legacy_migration.py", "tests/test_crash_safety.py", "tests/test_mutation_gaps.py", "tests/test_mutation_gaps2.py"]
 
 CMP_SWAP = {ast.Eq: ast.NotEq, ast.NotEq: ast.Eq, ast.Lt: ast.LtE, ast.LtE: ast.Lt, ast.Gt: ast.GtE,
             ast.GtE: ast.Gt, ast.Is: ast.IsNot, ast.IsNot: ast.Is, ast.In: ast.NotIn, ast.NotIn: ast.In}
