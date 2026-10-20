@@ -137,7 +137,7 @@ def test_remove_other_video_in_shuffle_keeps_current(media_dir):
     playlist.next(); playlist.next()
     current = playlist.current
     victim = next(v for v in playlist if v is not current)
-    playlist.remove(victim)
+    assert playlist.remove(victim) is True and victim not in playlist and len(playlist) == 5
     assert playlist.current is current  # audit 2.1 : la vidéo courante ne bouge plus
 
 
@@ -280,3 +280,16 @@ def test_reorder_applies_permutation_and_keeps_current(media_dir):
     new = [playlist[3], playlist[1], playlist[0], playlist[2]]
     assert playlist.reorder(new) and list(playlist) == new and playlist.current is current
     assert playlist.reorder(new[:3]) is False and playlist.reorder(new + new[:1]) is False
+
+
+def test_remove_accepts_video_objects_paths_uids_and_rejects_foreign_ones(media_dir, tmp_path):
+    playlist = make(media_dir, 4)
+    other = Playlist("autre")
+    other.add_folder(playlist.source)
+    foreign = other[0]
+    assert playlist.remove(foreign) is False and len(playlist) == 4        # objet d'une AUTRE playlist : refusé
+    assert playlist.remove(playlist[0]) is True                            # objet
+    assert playlist.remove(playlist[0].path) is True                       # chemin
+    assert playlist.remove(playlist[0].uid) is True                        # uid
+    assert playlist.remove(0) is True and len(playlist) == 0               # index
+    assert playlist.remove(0) is False and playlist.remove(True) is False  # hors limites / booléen

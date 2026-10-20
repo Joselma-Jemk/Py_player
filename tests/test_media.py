@@ -89,3 +89,12 @@ def test_scan_folder_with_exotic_file_names(tmp_path):
         (tmp_path / name).write_bytes(b"x")
     # « ² » n'est pas un média ; le reste est trié naturellement (ep2 < ep٣=3 < ep10) sans planter
     assert [p.name for p in media.scan_folder(tmp_path)] == ["ep2.mp4", "ep٣.mp4", "ep10.mp4", "film³.mp4", "ⅫⅫ.mkv"]
+
+
+def test_subtitle_lookup_does_not_miss_a_long_cue_hidden_behind_many_short_ones():
+    """Contre-exemple trouvé par Hypothesis (profil approfondi) : 5 cues démarrant ensemble, une seule encore active."""
+    from pyplayer.api.subtitles import Cue, SubtitleTrack
+    track = SubtitleTrack([Cue(0, 2, "long")] + [Cue(0, 1, f"court{i}") for i in range(4)])
+    assert track.text_at(1) == "long" and track.text_at(0) == "court3" and track.text_at(2) == ""
+    nested = SubtitleTrack([Cue(0, 100, "fond")] + [Cue(10 * i, 10 * i + 5, f"x{i}") for i in range(1, 9)])
+    assert nested.text_at(47) == "fond" and nested.text_at(42) == "x4"

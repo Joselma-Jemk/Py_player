@@ -236,7 +236,7 @@ class PlaylistMachine(RuleBasedStateMachine):
 
 def test_playlist_state_machine(pool):
     PlaylistMachine.pool = pool
-    PlaylistMachine.TestCase.settings = settings(max_examples=150, stateful_step_count=45, deadline=None)
+    PlaylistMachine.TestCase.settings = settings(max_examples=max(150, settings.default.max_examples), stateful_step_count=45, deadline=None)
     case = PlaylistMachine.TestCase()
     case.runTest()
 

@@ -54,18 +54,29 @@ class SubtitleTrack:
     """Accès rapide au sous-titre affiché à un instant donné."""
 
     def __init__(self, cues: list[Cue], source: str = "") -> None:
-        self.cues = cues
+        self.cues = sorted(cues, key=lambda c: c.start)
         self.source = source
-        self._starts = [c.start for c in cues]
+        self._starts = [c.start for c in self.cues]
+        # Fin maximale des cues 0..i : permet de savoir quand arrêter de remonter, même si les sous-titres se chevauchent.
+        self._max_end: list[int] = []
+        running = -1
+        for cue in self.cues:
+            running = max(running, cue.end)
+            self._max_end.append(running)
         self.delay = 0  # ms ; positif = sous-titres plus tard
 
     def text_at(self, position_ms: int) -> str:
+        """Texte affiché à l'instant donné (exact, même avec des sous-titres qui se chevauchent).
+
+        Parmi plusieurs sous-titres actifs, le dernier démarré l'emporte.
+        """
         t = position_ms - self.delay
         i = bisect.bisect_right(self._starts, t) - 1
-        # Les sous-titres peuvent se chevaucher : on remonte de quelques entrées.
-        for j in range(i, max(i - 4, -1), -1):
-            if self.cues[j].start <= t < self.cues[j].end:
-                return self.cues[j].text
+        while i >= 0 and self._max_end[i] > t:
+            cue = self.cues[i]
+            if cue.start <= t < cue.end:
+                return cue.text
+            i -= 1
         return ""
 
 

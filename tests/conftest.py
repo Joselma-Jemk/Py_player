@@ -6,7 +6,10 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("QT_LOGGING_RULES", "qt.multimedia.*=false;qt.qpa.*=false")
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+try:                                    # un PYTHONPATH explicite (test de mutation, installation) reste prioritaire
+    import pyplayer  # noqa: F401
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from hypothesis import HealthCheck, settings  # noqa: E402
 

@@ -62,7 +62,7 @@ class ResumeMachine(RuleBasedStateMachine):
 
 
 def test_resume_state_machine():
-    ResumeMachine.TestCase.settings = settings(max_examples=120, stateful_step_count=40, deadline=None)
+    ResumeMachine.TestCase.settings = settings(max_examples=max(120, settings.default.max_examples), stateful_step_count=40, deadline=None)
     ResumeMachine.TestCase().runTest()
 
 
@@ -174,11 +174,9 @@ def test_subtitle_lookup_matches_brute_force(raw, position, delay):
     shown = track.text_at(position)
     t = position - delay
     candidates = [c for c in cues if c.start <= t < c.end]
-    if shown:
-        assert any(c.text == shown for c in candidates)       # ce qui est affiché est toujours valide
-    # Les chevauchements profonds (> 4 cues actifs) sont la seule tolérance documentée.
-    if len(candidates) <= 1:
-        assert (shown != "") == bool(candidates)
+    assert (shown != "") == bool(candidates)                  # exact : rien de manqué, rien d'inventé
+    if candidates:
+        assert shown == candidates[-1].text                   # parmi plusieurs actifs, le dernier démarré gagne
 
 
 @given(st.text(max_size=400))

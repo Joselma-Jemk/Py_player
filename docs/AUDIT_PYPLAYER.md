@@ -1,6 +1,8 @@
 # Statut des corrections — version 0.2.0
 
 Chaque point de l'audit ci-dessous a été corrigé **et** couvert par au moins un test automatisé (nom du test indiqué).
+Suite complète : 236 tests (235 exécutés + 1 variante selon la présence d'un périphérique audio), 3 exécutions consécutives sans échec,
+93 % de couverture, mode approfondi (1 500 exemples) vert ; test de mutation : harnais corrigé, mesure à relancer (voir `docs/TESTING.md`).
 Le détail des anomalies d'origine reste plus bas dans ce document, inchangé.
 
 | # | Statut | Correction | Test(s) qui le protègent |
@@ -23,7 +25,7 @@ Le détail des anomalies d'origine reste plus bas dans ce document, inchangé.
 | 2.8 | ✅ | UI indexée par objet, doublons de noms gérés | `test_same_file_name_in_two_folders_are_distinct_videos`, `test_dock_items_follow_video_objects_not_names` |
 | 2.9 | ✅ | pas de reprise près de la fin (marge proportionnelle) | `test_resume_returns_position_only_in_the_meaningful_window`, `test_resume_window_is_consistent_for_any_duration`, `test_legacy_positions_become_resume_entries_but_ends_and_starts_are_ignored` |
 | 2.10 | ✅ | volume sans dérive, volume audio explicite au démarrage | `test_volume_roundtrip_does_not_drift`, `test_window_starts_with_default_playlist_and_consistent_audio_state` |
-| 2.11 | ✅ | erreurs média signalées, fichier invalide sauté, `closeEvent` | `test_invalid_file_is_skipped_and_reported`, `test_real_process_starts_opens_a_file_and_exits_cleanly` |
+| 2.11 | ✅ | erreurs média signalées, fichier invalide sauté, fermeture propre (`closeEvent`) | `test_invalid_file_is_skipped_and_reported`, `test_real_process_starts_opens_a_file_and_exits_cleanly` |
 | 2.12 | ✅ | Échap quitte seulement le plein écran | `test_escape_only_leaves_fullscreen` |
 | 2.13 | ✅ | un seul `QShortcut` par touche | `test_shortcuts_are_never_ambiguous`, `test_volume_mute_key_toggles_mute` |
 | 2.14 | ✅ | toutes les actions de menu sont reliées | `test_every_menu_action_is_wired_or_intentionally_passive` |
@@ -61,6 +63,18 @@ Le détail des anomalies d'origine reste plus bas dans ce document, inchangé.
 * **Plantage natif** (segfault) : double suppression d'un `QLocalSocket` dans la gestion de l'instance unique.
   Réécrit avec un cycle de vie déterministe, test de charge dédié.
 * **Performance** : 1 500 médias mettaient ~18 s à s'afficher (un widget par ligne) → dessin direct.
+* **`Playlist` vide = « fausse »** : `Playlist` définit `__len__`, donc `if not playlist` confondait une playlist vide avec
+  « aucune » et `rename` échouait silencieusement. Corrigé (`__bool__`, comparaisons à `None`).
+* **`QMediaPlayer.stop()` se bloque** (Qt 6.12, backend FFmpeg) : mesuré avec Qt seul, sans périphérique audio,
+  150 itérations × 4 séries : **0 série sur 4 aboutit avec `stop()`, 4 sur 4 avec `setSource(QUrl())`** ; avec un
+  périphérique, un arrêt immédiat après chargement bloque aussi par intermittence. L'application décharge désormais le
+  média avec `setSource(QUrl())` (bouton Stop, fermeture) et n'enregistre plus la position « 0 » qui suit l'arrêt.
+* **Blocage de Qt/FFmpeg sans périphérique audio** : `setActiveAudioTrack()` ne rend jamais la main s'il n'y a aucune
+  sortie audio (reproduit avec Qt seul, 6 essais sur 6). L'application refuse le changement de piste avec un message
+  au lieu de figer ; le test vérifie ce refus sans périphérique et le vrai changement avec un périphérique.
+* **Sous-titres** : un sous-titre long pouvait être manqué quand 4 sous-titres ou plus démarraient au même instant
+  (recherche limitée à 4 entrées). Trouvé par Hypothesis en profil approfondi (1 500 exemples) ; algorithme exact
+  (fin maximale cumulée) + contre-exemple conservé comme test.
 
 ---
 

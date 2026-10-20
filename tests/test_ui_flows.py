@@ -170,7 +170,7 @@ def test_open_url_goto_time_and_missing_file_dialogs(window, qapp, monkeypatch, 
     monkeypatch.setattr(QtWidgets.QInputDialog, "getText", lambda *a, **k: ("http://127.0.0.1:9/video.mp4", True))
     window.open_url_dialog()
     assert "127.0.0.1" in window.statusbar_widget.lbl_title.text() and window._loaded_video is None
-    window.player.stop()
+    window.unload_media()
     monkeypatch.setattr(QtWidgets.QInputDialog, "getText", lambda *a, **k: ("", True))
     window.open_url_dialog()                                      # vide : ignoré
     # fichier introuvable : boîte d'erreur (manuel) ou simple message (enchaînement automatique)
@@ -387,3 +387,37 @@ def test_closing_the_window_persists_resume_and_playlists(qapp, isolated_home, t
     again = PlaylistManager(isolated_home)
     assert again.resume.position(folder / "a.mp4") == 40_000
     assert again.active.current is not None and again.active.current.name == "a.mp4"
+
+
+@needs_ffmpeg
+def test_stop_unloads_the_media_and_never_calls_qt_stop(window, qapp, tmp_path, monkeypatch):
+    """Qt 6/FFmpeg : ``QMediaPlayer.stop()`` se bloque par intermittence (0 série sur 4 aboutit sans périphérique audio,
+    mesuré avec Qt seul) ; l'application décharge le média avec ``setSource(QUrl())`` à la place."""
+    long = make_video(tmp_path / "unload.mp4", seconds=6)
+    forbidden = []
+    monkeypatch.setattr(window.player, "stop", lambda: forbidden.append(1))
+    window.open_paths([str(long)])
+    assert wait_until(qapp, lambda: window._resume_ready)
+    window.stop_playing()
+    assert wait_until(qapp, lambda: window.player.mediaStatus() == QtMultimedia.QMediaPlayer.MediaStatus.NoMedia, 3)
+    assert window.player.playbackState() == QtMultimedia.QMediaPlayer.PlaybackState.StoppedState
+    assert window.player_widget.placeholder_label.isVisible() and not window.toolbar_widget.player_controls.btn_stop.isEnabled()
+    window.close()                                                # la fermeture non plus n'appelle pas stop()
+    assert forbidden == []
+
+
+@needs_ffmpeg
+def test_stop_keeps_the_resume_position(window, qapp, tmp_path):
+    """Appuyer sur Stop mémorise l'endroit ; le retour de la position à 0 ne doit pas effacer cette reprise."""
+    long = make_video(tmp_path / "stop_resume.mp4", seconds=16)
+    window.set_speed(1.0)
+    window.open_paths([str(long)])
+    assert wait_until(qapp, lambda: window._resume_ready and window.player.isSeekable())
+    window.player.setPosition(8000)
+    assert wait_until(qapp, lambda: window.player.position() >= 8000, 4)
+    pump(qapp, 200)
+    window.stop_playing()
+    pump(qapp, 600)
+    assert window.resume.position(long) >= 7500                  # toujours là après le retour à la position 0
+    window.play_or_pause()                                        # et « lire » reprend à cet endroit
+    assert wait_until(qapp, lambda: window._resume_ready and window.player.position() >= 7000, 6)

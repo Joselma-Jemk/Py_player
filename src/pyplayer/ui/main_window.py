@@ -60,7 +60,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self._rate = 1.0
         self._was_maximized = False
         self._dock_visible_before_fullscreen = True
-        self._playback_started_at = 0.0
 
         self.setup_ui()
         self.apply_settings()
@@ -288,7 +287,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.save_window_state()
         self.manager.flush()
         self.inhibitor.set_active(False)
-        self.player.stop()
+        self.unload_media()
         super().closeEvent(event)
 
     def flash(self, message: str, timeout_ms: int = 4000):
@@ -692,11 +691,20 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.play_video()
 
+    def unload_media(self):
+        """Arrête et décharge le média. On passe par ``setSource(QUrl())`` plutôt que ``QMediaPlayer.stop()`` :
+        avec le backend FFmpeg de Qt 6, ``stop()`` se bloque définitivement par intermittence (reproduit avec Qt seul :
+        0 série sur 4 de 150 itérations aboutit avec ``stop()``, 4 sur 4 avec ``setSource(QUrl())``)."""
+        self.player.setSource(QtCore.QUrl())
+
     def stop_playing(self):
         if self.player.playbackState() == PlaybackState.StoppedState and self.player.mediaStatus() == MediaStatus.NoMedia:
             return
         self._record_position()
-        self.player.stop()
+        self._resume_ready = False        # le retour de la position à 0 ne doit pas effacer la reprise qu'on vient d'enregistrer
+        self._resume_seeking = False
+        self._resume_timer.stop()
+        self.unload_media()
         self.player_widget.slider.setValue(0)
         self.toolbar_widget.time_label.set_times(current_time="00:00:00")
         self.player_widget.set_subtitle_text("")

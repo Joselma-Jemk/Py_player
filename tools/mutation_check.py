@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import argparse
 import ast
-import copy
 import random
 import shutil
 import subprocess
@@ -87,6 +86,57 @@ def _replace_stmt(tree, stmt):
                 return
 
 
+def run_tests(mutated_src: Path, workdir: Path, timeout: int) -> tuple[bool, str]:
+    """Lance la suite rapide contre ``mutated_src``. Retourne (réussie ?, sortie)."""
+    env = {"PYTHONPATH": str(mutated_src), "PATH": "/usr/bin:/usr/local/bin", "HOME": str(workdir),
+           "QT_QPA_PLATFORM": "offscreen", "PYTHONDONTWRITEBYTECODE": "1"}
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", "-x", "-q", "-p", "no:logging", "-p", "no:cacheprovider",
+             "-k", "not kill_9", "--no-header", "-o", "pythonpath=", *FAST_TESTS],
+            cwd=ROOT, env=env, capture_output=True, text=True, timeout=timeout)
+        return result.returncode == 0, result.stdout + result.stderr
+    except subprocess.TimeoutExpired:
+        return False, "timeout"
+
+
+def imported_from(mutated_src: Path, workdir: Path) -> str:
+    """Chemin réellement utilisé par pytest pour ``pyplayer`` (conftest compris) : doit être la copie mutée."""
+    env = {"PYTHONPATH": str(mutated_src), "PATH": "/usr/bin:/usr/local/bin", "HOME": str(workdir),
+           "QT_QPA_PLATFORM": "offscreen"}
+    probe = ROOT / "tests" / "_probe_import_test.py"
+    probe.write_text("def test_where():\n    import pyplayer\n    print('PYPLAYER_FILE=' + pyplayer.__file__)\n", encoding="utf-8")
+    try:
+        result = subprocess.run([sys.executable, "-m", "pytest", "-q", "-s", "-p", "no:logging", "-p", "no:cacheprovider",
+                                 "-o", "pythonpath=", str(probe)], cwd=ROOT, env=env, capture_output=True, text=True, timeout=120)
+    finally:
+        probe.unlink(missing_ok=True)
+    for line in result.stdout.splitlines():
+        if line.startswith("PYPLAYER_FILE="):
+            return line.split("=", 1)[1]
+    return ""
+
+
+def self_check(workdir: Path, timeout: int) -> None:
+    """Le harnais doit : (1) importer la copie mutée, (2) réussir sur le code intact, (3) échouer sur un mutant évident."""
+    mutated_src = workdir / "src"
+    shutil.copytree(SRC, mutated_src, ignore=shutil.ignore_patterns("__pycache__", "resources"))
+    (mutated_src / "pyplayer" / "resources").symlink_to(SRC / "pyplayer" / "resources")
+    where = imported_from(mutated_src, workdir)
+    if not where.startswith(str(mutated_src)):
+        raise SystemExit(f"HARNAIS INVALIDE : pyplayer est importé depuis {where!r} et non depuis la copie mutée")
+    ok, output = run_tests(mutated_src, workdir, timeout)
+    if not ok:
+        raise SystemExit("HARNAIS INVALIDE : la suite échoue sur le code NON muté :\n" + output[-1500:])
+    canary = mutated_src / "pyplayer" / "api" / "playlist.py"
+    canary.write_text(canary.read_text(encoding="utf-8").replace("return len(self.videos)", "return 0", 1), encoding="utf-8")
+    ok, _ = run_tests(mutated_src, workdir, timeout)
+    if ok:
+        raise SystemExit("HARNAIS INVALIDE : un mutant évident (len() == 0) n'est pas détecté")
+    shutil.rmtree(mutated_src)
+    print("auto-contrôle du harnais OK : copie mutée importée, code intact réussi, canari tué", flush=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--sample", type=int, default=60)
@@ -106,6 +156,7 @@ def main() -> int:
     killed, survived = 0, []
     workdir = Path(tempfile.mkdtemp(prefix="mutants_"))
     try:
+        self_check(workdir, args.timeout)
         for n, (name, index) in enumerate(chosen, 1):
             path = SRC / "pyplayer" / "api" / name
             tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -119,17 +170,9 @@ def main() -> int:
             shutil.copytree(SRC, mutated_src, ignore=shutil.ignore_patterns("__pycache__", "resources"))
             (mutated_src / "pyplayer" / "resources").symlink_to(SRC / "pyplayer" / "resources")
             (mutated_src / "pyplayer" / "api" / name).write_text(ast.unparse(tree), encoding="utf-8")
-            env = {"PYTHONPATH": str(mutated_src), "PATH": "/usr/bin:/usr/local/bin", "HOME": str(workdir),
-                   "QT_QPA_PLATFORM": "offscreen", "PYTHONDONTWRITEBYTECODE": "1"}
             start = time.time()
-            try:
-                result = subprocess.run(
-                    [sys.executable, "-m", "pytest", "-x", "-q", "-p", "no:logging", "-p", "no:cacheprovider",
-                     "-k", "not kill_9", "--no-header", "-o", "pythonpath=", *FAST_TESTS],
-                    cwd=ROOT, env=env, capture_output=True, text=True, timeout=args.timeout)
-                dead = result.returncode != 0
-            except subprocess.TimeoutExpired:
-                dead = True  # boucle infinie / blocage : le mutant est détecté
+            passed, _output = run_tests(mutated_src, workdir, args.timeout)
+            dead = not passed                       # échec OU blocage = mutant détecté
             status = "TUÉ     " if dead else "SURVIVANT"
             killed += dead
             if not dead:

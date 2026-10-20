@@ -102,10 +102,11 @@ pour le média **réellement chargé**.
 
 ```bash
 pip install -e ".[dev]"
-pytest                              # ~200 tests (API, UI hors écran, lecture réelle avec ffmpeg, pannes)
+pytest                              # 236 tests, 93 % de couverture (voir docs/TESTING.md)
 PYPLAYER_THOROUGH=1 pytest          # ×10 exemples pour les tests à base de propriétés
 pytest --cov=pyplayer
 python -m pyflakes src
+python tools/mutation_check.py      # test de mutation de l'API
 ```
 
 Les tests couvrent notamment : machine à états aléatoire de la playlist (Hypothesis), fuzzing des chargeurs JSON,

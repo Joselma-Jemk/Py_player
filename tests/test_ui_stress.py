@@ -36,8 +36,6 @@ def window(qapp, tmp_path, isolated_home):
     win.show()
     win.set_speed(4.0)
     yield win
-    win._record_position()
-    win.player.stop()
     win.close()
     win.deleteLater()
     qapp.processEvents()
@@ -532,3 +530,18 @@ def test_version_is_defined_in_one_place_and_displayed_everywhere(window):
     sources = Path(__file__).resolve().parent.parent / "src"
     offenders = [str(p) for p in sources.rglob("*.py") if re.search(r"['\"]0\.0\.1['\"]|v0\.0\.1", p.read_text(encoding="utf-8"))]
     assert not offenders, offenders                    # audit chap. 5 : « 0.0.1 » codé en dur dans plusieurs fichiers
+
+
+def test_every_glyph_button_uses_the_icon_font(window):
+    """Capture réelle : le bouton de volume affichait « ! » car la police d'icônes ne lui était pas appliquée."""
+    from pyplayer.ui import theme
+    family = theme.icon_font_family()
+    controls = window.toolbar_widget.player_controls
+    glyph_buttons = [window.toolbar_widget.volume_widget.btn, window.toolbar_widget.btn_playlist, *controls.btn_list,
+                     window.dock_widget.btn_add_to_playlist, window.dock_widget.btn_remove_to_playlist,
+                     window.dock_widget.btn_save_playlist, window.dock_widget.btn_remove_save]
+    for button in glyph_buttons:
+        assert button.font().family() == family, f"{button.text()!r} n'utilise pas la police d'icônes"
+    metrics = QtGui.QFontMetrics(window.toolbar_widget.volume_widget.btn.font())
+    for glyph in ("", "", "", ""):          # les 4 états du bouton de volume existent dans la police
+        assert metrics.inFontUcs4(ord(glyph)), hex(ord(glyph))

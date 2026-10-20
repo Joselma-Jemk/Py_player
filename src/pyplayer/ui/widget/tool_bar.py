@@ -36,7 +36,8 @@ class VolumeWidget(QtWidgets.QWidget):
         self.lbl.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.lbl.setFixedWidth(25)
 
-        # Configuration du bouton mute
+        # Configuration du bouton mute (police d'icônes explicite : ne pas dépendre du repli de police du système)
+        self.btn.setFont(theme.load_icon_font(14))
         self.btn.setFixedSize(32, 32)
         self.btn.setCheckable(True)
         self.mute_state = False

@@ -49,8 +49,6 @@ def window(qapp, tmp_path, monkeypatch):
     win.show()
     win.set_speed(4.0)
     yield win
-    win._record_position()
-    win.player.stop()
     win.close()
     win.deleteLater()
     qapp.processEvents()
