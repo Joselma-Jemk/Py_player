@@ -508,6 +508,20 @@ def test_folder_validation_is_debounced_not_run_per_keystroke(qapp, media_dir, m
     dialog.deleteLater()
 
 
+def test_playlist_name_follows_the_typed_folder_until_the_user_edits_it(qapp, tmp_path):
+    """Sous Windows, la 1re frappe (« C ») figeait le nom à 1 caractère, invalide : le nom doit suivre la saisie."""
+    from pyplayer.ui import dialogs
+    dialog = dialogs.NewPlaylistDialog(None)
+    for text in ("a", "ab", "ab/mes_films", str(tmp_path / "Films")):
+        dialog.edit_folder.setText(text)
+    assert dialog.edit_name.text() == "Films"
+    dialog.edit_name.setText("Perso")
+    dialog.edit_name.textEdited.emit("Perso")                      # modification faite par l'utilisateur
+    dialog.edit_folder.setText(str(tmp_path / "Autre"))
+    assert dialog.edit_name.text() == "Perso"
+    dialog.deleteLater()
+
+
 def test_icon_font_is_registered_only_once(qapp, monkeypatch):
     """Audit 3.11 : la police d'icônes était rechargée par quatre widgets."""
     from pyplayer.ui import theme

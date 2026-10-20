@@ -36,7 +36,7 @@ def test_normalize_makes_paths_absolute_and_keeps_urls(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     out = _normalize(["rel/video.mp4", "https://host/v.mp4", "rtsp://cam/1", "/abs/x.mkv"])
     assert out[0] == str(tmp_path / "rel" / "video.mp4")
-    assert out[1:] == ["https://host/v.mp4", "rtsp://cam/1", "/abs/x.mkv"]
+    assert out[1:] == ["https://host/v.mp4", "rtsp://cam/1", os.path.abspath("/abs/x.mkv")]
 
 
 def test_version_flag_prints_the_package_version():

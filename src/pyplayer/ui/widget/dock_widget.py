@@ -1,3 +1,4 @@
+import os
 from typing import List
 
 from PySide6 import QtGui, QtCore, QtWidgets
@@ -228,7 +229,7 @@ class ReorderableList(QtWidgets.QListWidget):
 
     def dropEvent(self, event):
         if event.mimeData().hasUrls() and event.source() is not self:
-            paths = [url.toLocalFile() for url in event.mimeData().urls() if url.isLocalFile()]
+            paths = [os.path.normpath(url.toLocalFile()) for url in event.mimeData().urls() if url.isLocalFile()]
             if paths:
                 self.files_dropped.emit(paths)
             event.acceptProposedAction()

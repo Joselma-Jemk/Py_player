@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import time
 from pathlib import Path
 
@@ -41,10 +42,12 @@ class LogCapture(logging.Handler):
 def test_m3u_windows_file_url_and_short_entries(tmp_path):
     drive = m3u._resolve("file:///C:/Music/a.mp3", tmp_path)                               # « /C:/ » → « C:/ »
     assert drive.as_posix().endswith("C:/Music/a.mp3") and not drive.as_posix().startswith("/C:")
-    assert m3u._resolve("file:///a", tmp_path) == Path("/a")                              # 2 caractères : intact
-    assert m3u._resolve("file:///ab", tmp_path) == Path("/ab")                            # pas de « : » en 3e position
-    short = m3u._resolve("file:///:", tmp_path)                                           # len == 2 : jamais d'IndexError
-    assert short == Path("/:")
+    if os.name != "nt":                                                                   # « /a » est absolu seulement sous POSIX
+        assert m3u._resolve("file:///a", tmp_path) == Path("/a")                          # 2 caractères : intact
+        assert m3u._resolve("file:///ab", tmp_path) == Path("/ab")                        # pas de « : » en 3e position
+        assert m3u._resolve("file:///:", tmp_path) == Path("/:")                          # len == 2 : jamais d'IndexError
+    else:
+        assert m3u._resolve("file:///:", tmp_path) is not None                            # jamais d'IndexError
     assert m3u._resolve("#EXTINF:1,x", tmp_path) is None and m3u._resolve("  ", tmp_path) is None
     assert m3u._resolve("http://x/y.mp4", tmp_path) is None
 

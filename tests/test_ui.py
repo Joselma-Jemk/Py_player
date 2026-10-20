@@ -494,6 +494,18 @@ def test_delete_dialog_returns_ids_for_same_named_playlists(qapp):
     dialog.deleteLater()
 
 
+def send_from_other_thread(app, instance, paths, enqueue=False) -> bool:
+    """Envoie comme le ferait une seconde instance (un autre processus) : depuis un thread à part, pendant que la
+    boucle d'événements du serveur tourne. Dans un même thread, les tubes nommés de Windows bloquent le client."""
+    import threading
+    result = []
+    worker = threading.Thread(target=lambda: result.append(instance.send_to_running(paths, enqueue)))
+    worker.start()
+    assert wait_until(app, lambda: bool(result), 10)
+    worker.join()
+    return result[0]
+
+
 def test_single_instance_forwards_paths(qapp):
     from pyplayer.ui.single_instance import SingleInstance
     name = f"pyplayer-test-{os.getpid()}"
@@ -502,7 +514,7 @@ def test_single_instance_forwards_paths(qapp):
     server.message_received.connect(lambda paths, enqueue: received.append((paths, enqueue)))
     assert client.send_to_running(["/x/a.mp4"]) is False   # personne n'écoute encore
     assert server.listen()
-    assert client.send_to_running(["/x/a.mp4", "/x/b.mp4"], enqueue=True)
+    assert send_from_other_thread(qapp, client, ["/x/a.mp4", "/x/b.mp4"], enqueue=True)
     assert wait_until(qapp, lambda: bool(received), 3)
     assert received[0] == (["/x/a.mp4", "/x/b.mp4"], True)
     server.close()
@@ -529,16 +541,17 @@ def test_single_instance_survives_many_clients_garbage_and_teardown(qapp):
     assert server.listen()
     clients = [SingleInstance(name=name) for _ in range(5)]
     for i in range(25):
-        assert clients[i % 5].send_to_running([f"/m/{i}.mp4"], enqueue=bool(i % 2))
+        assert send_from_other_thread(qapp, clients[i % 5], [f"/m/{i}.mp4"], enqueue=bool(i % 2))
     # données invalides : ni JSON, ni UTF-8, ni objet attendu
     for payload in (b"not json", b"\xff\xfe\x00", b"[1,2,3]", b'{"paths": 5}', b"", b'{"paths": ["/ok.mp4"]}'):
         raw = QtNetwork.QLocalSocket()
         raw.connectToServer(name)
-        assert raw.waitForConnected(1000)
+        assert wait_until(qapp, lambda: raw.state() == QtNetwork.QLocalSocket.LocalSocketState.ConnectedState, 3)
         raw.write(payload)
         raw.flush()
-        raw.waitForBytesWritten(500)
+        wait_until(qapp, lambda: raw.bytesToWrite() == 0, 2)
         raw.disconnectFromServer()
+        pump(qapp, 20)
         raw.abort()
     assert wait_until(qapp, lambda: len(received) >= 26, 5), len(received)
     assert received[:3] == [(("/m/0.mp4",), False), (("/m/1.mp4",), True), (("/m/2.mp4",), False)]

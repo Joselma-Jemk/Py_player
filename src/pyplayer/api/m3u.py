@@ -24,7 +24,11 @@ def _resolve(entry: str, base: Path) -> Path | None:
     if not entry or entry.startswith("#"):
         return None
     if entry.lower().startswith("file://"):
-        entry = unquote(urlparse(entry).path)
+        parsed = urlparse(entry)
+        if len(parsed.netloc) == 2 and parsed.netloc[1] == ":" and parsed.netloc[0].isalpha():
+            entry = parsed.netloc + unquote(parsed.path)   # « file://C:/x » (mal formé mais courant)
+        else:
+            entry = unquote(parsed.path)
         if len(entry) > 2 and entry[0] == "/" and entry[2] == ":":  # file:///C:/...
             entry = entry[1:]
     elif "://" in entry:

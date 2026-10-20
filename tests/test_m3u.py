@@ -20,7 +20,9 @@ def test_read_pls_and_file_urls(tmp_path):
     pls.write_text(f"[playlist]\nFile1={tmp_path / 'a.mp3'}\nTitle1=a\nNumberOfEntries=1\n", encoding="utf-8")
     assert [p.name for p in read_playlist_file(pls)[1]] == ["a.mp3"]
     m3u = tmp_path / "u.m3u"
-    m3u.write_text(f"file://{tmp_path / 'a.mp3'}\n", encoding="utf-8")
+    m3u.write_text(f"{(tmp_path / 'a.mp3').as_uri()}\n", encoding="utf-8")        # URL bien formée, tout système
+    assert [p.name for p in read_playlist_file(m3u)[1]] == ["a.mp3"]
+    m3u.write_text(f"file://{(tmp_path / 'a.mp3').as_posix()}\n", encoding="utf-8")  # « file://C:/x » mal formé mais courant
     assert [p.name for p in read_playlist_file(m3u)[1]] == ["a.mp3"]
 
 

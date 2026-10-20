@@ -598,7 +598,7 @@ class MainWindow(QtWidgets.QMainWindow):
             event.acceptProposedAction()
 
     def dropEvent(self, event):
-        dropped = [url.toLocalFile() for url in event.mimeData().urls() if url.isLocalFile()]
+        dropped = [os.path.normpath(url.toLocalFile()) for url in event.mimeData().urls() if url.isLocalFile()]
         if dropped:
             self.open_paths(dropped, enqueue=False)
             event.acceptProposedAction()

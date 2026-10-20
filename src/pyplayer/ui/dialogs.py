@@ -110,6 +110,8 @@ class NewPlaylistDialog(QtWidgets.QDialog):
         self.btn_cancel.clicked.connect(self.reject)
         self.edit_folder.textChanged.connect(self._on_folder_text_changed)
         self.edit_name.textChanged.connect(self._update_state)
+        self._name_auto = True                                  # le nom suit le dossier tant qu'on ne l'a pas modifié
+        self.edit_name.textEdited.connect(lambda _text: setattr(self, "_name_auto", False))
 
     # ------------------------------------------------------------------ logique
     def _browse(self):
@@ -117,13 +119,13 @@ class NewPlaylistDialog(QtWidgets.QDialog):
             self, "Sélectionner un dossier contenant des vidéos", self.start_dir)
         if folder:
             self.edit_folder.setText(folder)
-            if not self.edit_name.text().strip():
+            if self._name_auto or not self.edit_name.text().strip():
                 self.edit_name.setText(Path(folder).name or "nouvelle_playlist")
 
     def _on_folder_text_changed(self):
         text = self.edit_folder.text().strip()
-        if text and not self.edit_name.text().strip():
-            self.edit_name.setText(Path(text).name or "nouvelle_playlist")
+        if text and (self._name_auto or not self.edit_name.text().strip()):
+            self.edit_name.setText(Path(text).name or "nouvelle_playlist")   # setText n'émet pas textEdited
         self._media_count = 0
         self._set_folder_message("", ok=False)
         self._check_timer.start()

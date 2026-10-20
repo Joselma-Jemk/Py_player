@@ -311,7 +311,7 @@ def test_info_reveal_logs_about_help_and_screenshot_without_media(window, monkey
     window.about_pyplayer()
     window.show_help_dialog()
     assert shown == ["v1.mp4", "about", "help"] and len(opened) == 2
-    assert opened[0] == str(window.active_playlist[1].parent)
+    assert Path(opened[0]) == window.active_playlist[1].parent
     window.take_screenshot()
     assert "Aucune image" in window.statusBar().currentMessage()
 
