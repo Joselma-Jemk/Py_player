@@ -1,4 +1,21 @@
+# Environnements / caches
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.hypothesis/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+.mypy_cache/
+.ruff_cache/
+
+# IDE / empaquetage historique
 .idea/
+.vscode/
 .dist/main.dist/
 .dist/main.build/
 .Setup/

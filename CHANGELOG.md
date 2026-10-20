@@ -1,0 +1,38 @@
+# Changelog
+
+## 0.2.0 — refonte de la logique, fonctions pro, tests durcis
+
+Le look de l'interface est conservé (mêmes widgets, couleurs, disposition) ; la logique, la persistance et les
+performances sont reprises en profondeur, et de nouvelles fonctions de lecteur « pro » sont ajoutées.
+
+### Corrigé (voir `AUDIT_PYPLAYER.md`)
+* **Playlists** : identifiants uniques (UUID) — fin des écrasements entre playlists vides ou de même dossier ;
+  les sauvegardes ne sont plus rechargées comme des playlists ; suppression par identifiant (plus de playlist
+  « Hard Rock » supprimée à la place de « Rock ») ; une playlist reste toujours active.
+* **Lecture** : la position est enregistrée pour le média réellement chargé ; plus de reprise à 99 % ; « suivant »
+  en fin de liste ne rejoue plus ; mode aléatoire sans répétition, cohérent après suppression/ajout/saut ;
+  état muet lu sur la vraie sortie audio ; résolution lue depuis le média (et non la taille du widget) ;
+  erreurs de lecture signalées et fichier invalide sauté ; volume sans dérive.
+* **Interface** : annulation du dialogue « ajouter un dossier » sans effet ; Échap ne fait que quitter le plein
+  écran ; touche muet fonctionnelle ; infobulle play/pause juste ; raccourcis uniques (Ctrl+S ne supprime plus) ;
+  aide et raccourcis conformes à la réalité ; doublons de noms de fichiers gérés ; dossier source jamais modifié.
+* **Performances** : plus d'écriture de playlist à chaque tick (12,5 ms × plusieurs/s) ; ajout de 300 dossiers en
+  quelques ms au lieu de 5 s ; liste de milliers de médias fluide (dessin direct, plus de widget par ligne) ;
+  volume écrit par lots, pas à chaque cran.
+* **Tri naturel** (`ep2` avant `ep10`), sans planter sur les noms contenant « ² » ou d'autres chiffres Unicode.
+* **Migration** depuis l'ancien format (dates ISO, positions, dernière playlist, volume), avec instantané du v1.
+
+### Ajouté
+* Ligne de commande, « Ouvrir avec… », instance unique, glisser-déposer, ouverture d'URL, fichiers récents.
+* Vitesse 0,25×–4×, boucle A-B, « aller à l'instant », pistes audio, sous-titres intégrés et externes (.srt/.vtt) avec
+  décalage, périphérique audio, formats d'image, capture d'écran, toujours au premier plan, inhibition de la veille.
+* Menus contextuels, informations sur le média, réorganisation par glisser-déposer / Alt+↑↓, tri, import/export M3U,
+  actualisation depuis le dossier source, lecture audio, mémorisation de la fenêtre, mode « Lecture rapide ».
+* Package `pyplayer` installable (`pyproject.toml`, commande `pyplayer`), journal tournant, CI GitHub Actions.
+
+### Tests
+* ~200 tests : API, UI hors écran avec lecture réelle (ffmpeg), tests à base de propriétés (Hypothesis), pannes
+  (SIGKILL, disque plein, corruption), migration depuis de vrais fichiers v1, stress de l'UI, paquet.
+
+## 0.1.0
+Version initiale.

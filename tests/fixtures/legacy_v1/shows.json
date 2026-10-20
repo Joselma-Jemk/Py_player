@@ -1,0 +1,116 @@
+{
+  "version": "1.0",
+  "created_at": "2026-10-20T16:44:56.930576",
+  "file_validation": {
+    "total_videos": 5,
+    "valid_videos": 5,
+    "missing_videos": 0,
+    "validation_date": "2026-10-20T16:44:56.930580"
+  },
+  "path": "{{MEDIA}}/shows",
+  "name": "Séries",
+  "description": null,
+  "unique_id": "CFEB2BD2",
+  "play_mode": "loop_all",
+  "videos": [
+    {
+      "file_path": "{{MEDIA}}/shows/ep10.mkv",
+      "name": "ep10.mkv",
+      "size": 128,
+      "width": 0,
+      "height": 0,
+      "duration": 120000,
+      "extension": ".mkv",
+      "state": {
+        "playing": false,
+        "position": 65000,
+        "duration": 120000,
+        "volume": 0.8,
+        "muted": true
+      },
+      "file_exists": true
+    },
+    {
+      "file_path": "{{MEDIA}}/shows/ep2.mp4",
+      "name": "ep2.mp4",
+      "size": 128,
+      "width": 0,
+      "height": 0,
+      "duration": 90000,
+      "extension": ".mp4",
+      "state": {
+        "playing": false,
+        "position": 1000,
+        "duration": 90000,
+        "volume": 1.0,
+        "muted": false
+      },
+      "file_exists": true
+    },
+    {
+      "file_path": "{{MEDIA}}/shows/ep1.mp4",
+      "name": "ep1.mp4",
+      "size": 128,
+      "width": 0,
+      "height": 0,
+      "duration": 90000,
+      "extension": ".mp4",
+      "state": {
+        "playing": false,
+        "position": 89000,
+        "duration": 90000,
+        "volume": 1.0,
+        "muted": false
+      },
+      "file_exists": true
+    },
+    {
+      "file_path": "{{MEDIA}}/shows/s2/a.avi",
+      "name": "a.avi",
+      "size": 128,
+      "width": 0,
+      "height": 0,
+      "duration": 0,
+      "extension": ".avi",
+      "state": {
+        "playing": false,
+        "position": 0,
+        "duration": 0,
+        "volume": 1.0,
+        "muted": false
+      },
+      "file_exists": true
+    },
+    {
+      "file_path": "{{MEDIA}}/shows/s2/b.webm",
+      "name": "b.webm",
+      "size": 128,
+      "width": 0,
+      "height": 0,
+      "duration": 0,
+      "extension": ".webm",
+      "state": {
+        "playing": false,
+        "position": 0,
+        "duration": 0,
+        "volume": 1.0,
+        "muted": false
+      },
+      "file_exists": true
+    }
+  ],
+  "current_index": 1,
+  "shuffle_state": null,
+  "playlist_state": {
+    "playlist_id": "CFEB2BD2",
+    "play_mode": "loop_all",
+    "current_index": 1,
+    "current_video_path": "{{MEDIA}}/shows/ep2.mp4",
+    "total_videos": 5,
+    "total_duration": 0,
+    "is_playing": false,
+    "play_history": [
+      1
+    ]
+  }
+}

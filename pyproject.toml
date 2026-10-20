@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyplayer"
+dynamic = ["version"]
+description = "Lecteur vidéo/audio local minimaliste basé sur PySide6 (Qt 6)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "Licence.txt" }
+authors = [{ name = "Josias KOUTCHANOU" }]
+dependencies = ["PySide6>=6.6"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "hypothesis>=6", "pytest-timeout>=2", "pytest-cov>=5", "pyflakes>=3"]
+
+[project.scripts]
+pyplayer = "pyplayer.__main__:main"
+
+[project.gui-scripts]
+pyplayer-gui = "pyplayer.__main__:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "pyplayer.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+pyplayer = ["resources/*.ttf", "resources/icons/*.png", "resources/icons/*/*.png"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]
+markers = ["slow: tests longs (lecture réelle, stress)"]
+
+[tool.coverage.run]
+source = ["pyplayer"]
+branch = true
+omit = ["*/__main__.py"]
+
+[tool.coverage.report]
+exclude_lines = ["pragma: no cover", "if __name__ == .__main__.:", "raise NotImplementedError"]

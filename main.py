@@ -1,22 +1,10 @@
-"""
-
-        ██████╗ ██╗   ██╗██████╗ ██╗      █████╗ ██╗   ██╗███████╗██████╗
-        ██╔══██╗╚██╗ ██╔╝██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗
-        ██████╔╝ ╚████╔╝ ██████╔╝██║     ███████║ ╚████╔╝ █████╗  ██████╔╝
-        ██╔═══╝   ╚██╔╝  ██╔═══╝ ██║     ██╔══██║  ╚██╔╝  ██╔══╝  ██╔══██╗
-        ██║        ██║   ██║     ███████╗██║  ██║   ██║   ███████╗██║  ██║
-        ╚═╝        ╚═╝   ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
-
-"""
+"""Lanceur de développement : ``python main.py [fichiers…]`` (équivalent de ``python -m pyplayer``)."""
 import sys
-from PySide6 import QtCore, QtWidgets
-from src.main.python.ui.main_window import MainWindow
+from pathlib import Path
 
-if __name__ == '__main__':
-    QtWidgets.QApplication.setAttribute(QtCore.Qt.ApplicationAttribute.AA_UseOpenGLES)
-    app = QtWidgets.QApplication(sys.argv)
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
-    window = MainWindow()
-    window.show()
+from pyplayer.__main__ import main  # noqa: E402
 
-    sys.exit(app.exec())
+if __name__ == "__main__":
+    raise SystemExit(main())

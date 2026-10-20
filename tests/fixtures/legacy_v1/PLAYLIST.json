@@ -1,0 +1,28 @@
+{
+  "version": "1.0",
+  "created_at": "2026-10-20T16:44:56.929345",
+  "file_validation": {
+    "total_videos": 0,
+    "valid_videos": 0,
+    "missing_videos": 0,
+    "validation_date": "2026-10-20T16:44:56.929349"
+  },
+  "path": null,
+  "name": "PLAYLIST",
+  "description": null,
+  "unique_id": "empty_playlist",
+  "play_mode": "normal",
+  "videos": [],
+  "current_index": -1,
+  "shuffle_state": null,
+  "playlist_state": {
+    "playlist_id": "empty_playlist",
+    "play_mode": "normal",
+    "current_index": -1,
+    "current_video_path": null,
+    "total_videos": 0,
+    "total_duration": 0,
+    "is_playing": false,
+    "play_history": []
+  }
+}

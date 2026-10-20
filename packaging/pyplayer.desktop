@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=PyPlayer
+GenericName=Lecteur multimédia
+Comment=Lecteur vidéo et audio local
+Exec=pyplayer %F
+Icon=pyplayer
+Terminal=false
+Categories=AudioVideo;Video;Player;
+StartupWMClass=pyplayer
+MimeType=video/mp4;video/x-matroska;video/webm;video/x-msvideo;video/quicktime;video/mpeg;video/x-ms-wmv;video/x-flv;video/ogg;video/3gpp;video/mp2t;audio/mpeg;audio/flac;audio/x-wav;audio/ogg;audio/aac;audio/mp4;audio/x-ms-wma;audio/opus;application/vnd.apple.mpegurl;audio/x-mpegurl;audio/x-scpls;
