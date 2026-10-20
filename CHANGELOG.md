@@ -28,6 +28,7 @@ performances sont reprises en profondeur, et de nouvelles fonctions de lecteur �
   décalage, périphérique audio, formats d'image, capture d'écran, toujours au premier plan, inhibition de la veille.
 * Menus contextuels, informations sur le média, réorganisation par glisser-déposer / Alt+↑↓, tri, import/export M3U,
   actualisation depuis le dossier source, lecture audio, mémorisation de la fenêtre, mode « Lecture rapide ».
+* Binaire autonome Nuitka (un seul fichier, ~53 Mo sous Linux) et workflow de release sur tag `v*` (Linux + Windows).
 * Package `pyplayer` installable (`pyproject.toml`, commande `pyplayer`), journal tournant, CI GitHub Actions.
 
 ### Tests

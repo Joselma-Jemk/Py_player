@@ -12,6 +12,20 @@ pyplayer                      # ou : python -m pyplayer
 
 Prérequis : Python ≥ 3.10. Qt Multimedia utilise son backend FFmpeg (déjà embarqué dans les roues PySide6).
 
+### Binaire autonome (sans Python)
+
+Les releases GitHub contiennent un exécutable unique par système (`pyplayer-<version>-linux-x86_64`,
+`pyplayer-<version>-windows-AMD64.exe`) avec leurs sommes SHA256. Pour en construire un soi-même :
+
+```bash
+pip install -e ".[build]"
+python tools/build_nuitka.py        # -> dist/pyplayer-<version>-<système>-<arch>
+```
+
+Nuitka ne compile pas d'un système à l'autre : le binaire Windows se construit sous Windows. Le workflow
+`.github/workflows/release.yml` fait les deux : `git tag v0.2.0 && git push origin v0.2.0` lance les tests,
+compile Linux + Windows, vérifie `--version` sur chaque binaire et publie la release (notes tirées de `CHANGELOG.md`).
+
 ## Utilisation
 
 ```text
