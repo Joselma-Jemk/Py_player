@@ -74,7 +74,9 @@ class PlaybackSession:
         self.pending = False
         if self.loaded_video is not None and self.resume_target > 0 and duration > self.resume_target:
             self.resume_seeking = True
+            self.resume_ready = False   # un 2e « média chargé » ne doit pas laisser les deux vrais à la fois
             return self.resume_target
+        self.resume_seeking = False
         self.resume_ready = True
         return None
 

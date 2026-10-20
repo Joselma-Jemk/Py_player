@@ -34,6 +34,14 @@ def test_resume_seek_blocks_recording_until_reached():
     assert s.state is State.READY and s.resume_ready
 
 
+def test_a_second_loaded_signal_never_leaves_seeking_and_ready_both_true():
+    s = PlaybackSession()
+    s.begin_load(video(), 1)
+    assert s.on_loaded(1) is None and s.resume_ready          # durée trop courte : pas de reprise
+    assert s.on_loaded(2) == 1                                 # signal en double, durée connue : reprise
+    assert s.resume_seeking and not s.resume_ready and s.state is State.SEEKING_RESUME
+
+
 def test_resume_target_beyond_duration_is_ignored():
     s = PlaybackSession()
     s.begin_load(video(), 90_000)
