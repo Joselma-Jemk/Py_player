@@ -20,6 +20,10 @@ performances sont reprises en profondeur, et de nouvelles fonctions de lecteur �
   quelques ms au lieu de 5 s ; liste de milliers de médias fluide (dessin direct, plus de widget par ligne) ;
   volume écrit par lots, pas à chaque cran.
 * **Tri naturel** (`ep2` avant `ep10`), sans planter sur les noms contenant « ² » ou d'autres chiffres Unicode.
+* **Windows** (trouvé par le CI Windows) : nom de playlist figé à 1 caractère en tapant « C:\… » à la main ; chemins
+  glissés-déposés en « C:/… » mélangés aux « C:\… » ; `file://C:/x` d'une playlist M3U non lu ; instance unique qui
+  pouvait perdre les fichiers envoyés par « Ouvrir avec… » (le client ferme maintenant après l'accusé de réception).
+* **Reprise** : un second signal « média chargé » ne laisse plus la reprise et l'enregistrement actifs ensemble.
 * **Migration** depuis l'ancien format (dates ISO, positions, dernière playlist, volume), avec instantané du v1.
 
 ### Ajouté
