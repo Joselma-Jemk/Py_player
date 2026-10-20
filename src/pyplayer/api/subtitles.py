@@ -41,13 +41,14 @@ def parse_subtitles(text: str) -> list[Cue]:
 
 
 def load_subtitle_file(path: str | Path) -> list[Cue]:
+    """Lit un fichier .srt/.vtt (UTF-8 avec ou sans BOM, sinon Windows-1252, sinon Latin-1 qui accepte tout octet)."""
     raw = Path(path).read_bytes()
-    for encoding in ("utf-8-sig", "cp1252", "latin-1"):
+    for encoding in ("utf-8-sig", "cp1252"):
         try:
             return parse_subtitles(raw.decode(encoding))
         except UnicodeDecodeError:
             continue
-    return []
+    return parse_subtitles(raw.decode("latin-1"))
 
 
 class SubtitleTrack:

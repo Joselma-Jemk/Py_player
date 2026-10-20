@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import shutil
-import time
+from datetime import datetime
 from pathlib import Path
 from typing import Iterator
 
@@ -255,7 +255,7 @@ class PlaylistManager:
             content = file_path.read_bytes()
             if existing and not legacy and existing[-1].read_bytes() == content:
                 return
-            label = "v1" if legacy else time.strftime("%Y%m%d_%H%M%S")
+            label = "v1" if legacy else datetime.now().strftime("%Y%m%d_%H%M%S_%f")
             shutil.copy2(file_path, self.backups_dir / f"{file_path.stem}.{label}.json")
             existing = sorted(self.backups_dir.glob(f"{file_path.stem}.*.json"),
                               key=lambda p: p.stat().st_mtime)

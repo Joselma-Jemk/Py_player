@@ -370,7 +370,7 @@ def test_set_speed_and_aspect_helpers(window):
     window.set_speed(1.3)                                         # vitesse hors liste : le cran le plus proche est utilisé
     window.step_speed(+1)
     assert window._rate == 1.5
-    assert window.statusbar_widget.lbl_info.text().startswith("1.5×") or "1,5" in window.statusbar_widget.lbl_info.text() or True
+    assert window.statusbar_widget.lbl_info.text() == "1.5×"
 
 
 def test_closing_the_window_persists_resume_and_playlists(qapp, isolated_home, tmp_path):
