@@ -50,7 +50,15 @@ jobs:
         shell: bash
         env:
           QT_QPA_PLATFORM: offscreen
-        run: pytest -p no:logging --timeout=180 -x -q
+        run: pytest -p no:logging --timeout=180 -q -rfE --tb=short 2>&1 | tee pytest-output.txt; exit "${PIPESTATUS[0]}"
+      - name: Résumé des échecs (annotations lisibles dans l'interface et l'API)
+        if: failure()
+        shell: bash
+        run: |
+          grep -E "^(FAILED|ERROR) " pytest-output.txt | head -30 | while read -r line; do
+            echo "::error title=test en échec::${line:0:400}"
+          done
+          tail -5 pytest-output.txt | while read -r line; do echo "::notice title=fin de pytest::${line:0:300}"; done
       - name: Compilation Nuitka
         run: python tools/build_nuitka.py
       - name: Test de fumée du binaire
