@@ -26,6 +26,8 @@ def version() -> str:
 
 
 def main() -> int:
+    for stream in (sys.stdout, sys.stderr):                    # la console Windows (cp1252) ne sait pas tout afficher
+        stream.reconfigure(encoding="utf-8", errors="replace")
     system = {"Linux": "linux", "Windows": "windows", "Darwin": "macos"}.get(platform.system(), platform.system().lower())
     arch = platform.machine().lower().replace("amd64", "x86_64")
     name = f"pyplayer-{version()}-{system}-{arch}"
@@ -56,7 +58,7 @@ def main() -> int:
     command.append(str(ROOT / "packaging" / "entry.py"))
 
     env = dict(os.environ, PYTHONPATH=str(SRC))
-    print("→", " ".join(command), flush=True)
+    print(">", " ".join(command), flush=True)
     subprocess.run(command, check=True, env=env, cwd=ROOT)
 
     produced = ROOT / "build" / "nuitka" / (name + (".exe" if system == "windows" else ""))
