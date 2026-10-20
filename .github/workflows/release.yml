@@ -1,0 +1,94 @@
+name: release
+
+# Pousser un tag « v0.2.0 » construit les binaires Linux et Windows (Nuitka, un seul fichier) et publie une release.
+# Lancement manuel possible (« Run workflow ») : construit et garde les binaires en artefacts, sans publier.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Le tag doit correspondre à pyplayer.__version__
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(sed -n 's/^__version__ *= *"\(.*\)"/\1/p' src/pyplayer/__init__.py)
+          test "v$version" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} ≠ version $version"; exit 1; }
+
+  build:
+    needs: check-version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04      # glibc ancienne : le binaire tourne aussi sur les distributions plus récentes
+            label: linux
+          - os: windows-latest
+            label: windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Bibliothèques système (Linux)
+        if: matrix.label == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg patchelf libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3 libpulse0 libxcb-cursor0
+      - name: Installation
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,build]"
+      - name: Tests
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: pytest -p no:logging --timeout=180 -x -q
+      - name: Compilation Nuitka
+        run: python tools/build_nuitka.py
+      - name: Test de fumée du binaire
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          binary=$(ls dist/pyplayer-*)
+          echo "binaire : $binary"
+          "./$binary" --version
+      - name: Somme de contrôle
+        shell: bash
+        run: |
+          cd dist
+          sha256sum pyplayer-* > "SHA256SUMS-${{ matrix.label }}.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pyplayer-${{ matrix.label }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Extraire les notes de version du CHANGELOG
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '$0 ~ "^## " v {found=1; next} found && /^## / {exit} found' CHANGELOG.md > notes.md
+          test -s notes.md || echo "PyPlayer ${GITHUB_REF_NAME}" > notes.md
+      - uses: softprops/action-gh-release@v2
+        with:
+          body_path: notes.md
+          files: dist/*
+          fail_on_unmatched_files: true
