@@ -18,6 +18,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src"
 
+# Les familles de plugins Qt existent selon le système (Nuitka s'arrête net sur un nom inconnu).
+QT_PLUGINS = {
+    "common": ["multimedia", "platforms", "iconengines", "imageformats", "tls"],
+    "linux": ["platformthemes", "xcbglintegrations"],
+    "windows": ["styles"],
+    "macos": ["styles"],
+}
+
 
 def version() -> str:
     namespace: dict[str, str] = {}
@@ -39,7 +47,7 @@ def main() -> int:
         "--onefile",
         "--assume-yes-for-downloads",
         "--enable-plugin=pyside6",
-        "--include-qt-plugins=multimedia,platforms,iconengines,imageformats,platformthemes,xcbglintegrations,tls",
+        "--include-qt-plugins=" + ",".join(QT_PLUGINS["common"] + QT_PLUGINS.get(system, [])),
         "--include-package=pyplayer",
         f"--include-data-dir={SRC / 'pyplayer' / 'resources'}=pyplayer/resources",
         "--nofollow-import-to=pytest,hypothesis,tests",
