@@ -13,6 +13,7 @@ from pyplayer import APP_NAME
 from pyplayer.api import media, paths
 from pyplayer.api.manager import PlaylistManager
 from pyplayer.api.media import format_duration, format_size
+from pyplayer.api.playback import PlaybackSession
 from pyplayer.api.playlist import PlayMode, Playlist
 from pyplayer.api.subtitles import SubtitleTrack, find_sidecar, load_subtitle_file
 from pyplayer.api.video import Video
@@ -42,6 +43,79 @@ MEDIA_FILTER = ("Médias (" + " ".join(f"*{e}" for e in sorted(media.MEDIA_EXTEN
 
 class MainWindow(QtWidgets.QMainWindow):
 
+    # État de lecture : porté par ``self.session`` (sans Qt) ; propriétés conservées pour l'interface et les tests.
+    @property
+    def _loaded_video(self):
+        return self.session.loaded_video
+
+    @_loaded_video.setter
+    def _loaded_video(self, value):
+        self.session.loaded_video = value
+
+    @property
+    def _resume_target(self):
+        return self.session.resume_target
+
+    @_resume_target.setter
+    def _resume_target(self, value):
+        self.session.resume_target = value
+
+    @property
+    def _resume_ready(self):
+        return self.session.resume_ready
+
+    @_resume_ready.setter
+    def _resume_ready(self, value):
+        self.session.resume_ready = value
+
+    @property
+    def _resume_seeking(self):
+        return self.session.resume_seeking
+
+    @_resume_seeking.setter
+    def _resume_seeking(self, value):
+        self.session.resume_seeking = value
+
+    @property
+    def _error_streak(self):
+        return self.session.error_streak
+
+    @_error_streak.setter
+    def _error_streak(self, value):
+        self.session.error_streak = value
+
+    @property
+    def _ab_a(self):
+        return self.session.ab_a
+
+    @_ab_a.setter
+    def _ab_a(self, value):
+        self.session.ab_a = value
+
+    @property
+    def _ab_b(self):
+        return self.session.ab_b
+
+    @_ab_b.setter
+    def _ab_b(self, value):
+        self.session.ab_b = value
+
+    @property
+    def _subtitles(self):
+        return self.session.subtitles
+
+    @_subtitles.setter
+    def _subtitles(self, value):
+        self.session.subtitles = value
+
+    @property
+    def _rate(self):
+        return self.session.rate
+
+    @_rate.setter
+    def _rate(self, value):
+        self.session.rate = value
+
     def __init__(self, manager: PlaylistManager | None = None):
         super().__init__()
         self.manager = manager or PlaylistManager()
@@ -49,15 +123,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.resume = self.manager.resume
         self.inhibitor = SleepInhibitor()
 
-        self._loaded_video: Video | None = None   # média réellement chargé dans le lecteur
-        self._resume_target = 0                    # position de reprise à appliquer au chargement
-        self._resume_ready = False                 # tant que faux, on n'enregistre pas la position
-        self._resume_seeking = False               # reprise demandée, pas encore atteinte par le lecteur
-        self._error_streak = 0
-        self._ab_a: int | None = None
-        self._ab_b: int | None = None
-        self._subtitles: SubtitleTrack | None = None
-        self._rate = 1.0
+        self.session = PlaybackSession()           # état de lecture explicite (api/playback.py)
         self._was_maximized = False
         self._dock_visible_before_fullscreen = True
 
@@ -460,8 +526,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def open_url(self, url: QtCore.QUrl):
         """Lit un flux distant directement (non ajouté aux playlists)."""
         self._record_position()
-        self._loaded_video = None
-        self._resume_target, self._resume_ready = 0, False
+        self.session.begin_load(None)
         self.player.setSource(url)
         self.player.play()
         self.statusbar_widget.lbl_title.setText(f"     🌐  {url.toString()}")
@@ -663,14 +728,11 @@ class MainWindow(QtWidgets.QMainWindow):
             return
 
         self._record_position()                       # mémorise l'endroit où l'on quitte le média précédent
-        self._loaded_video = video
         if playlist.current is not video:
             playlist.set_current(video, remember=False)
-        self._resume_target = self.resume.position(video.path) if self.settings.get("resume_playback") else 0
-        self._resume_ready = False
-        self._resume_seeking = False
+        self.session.begin_load(video, self.resume.position(video.path) if self.settings.get("resume_playback") else 0)
         self._resume_timer.stop()
-        self._clear_ab_loop(silent=True)
+        self._update_status_info()
         self._load_sidecar_subtitles(video)
 
         self.player.setSource(QtCore.QUrl.fromLocalFile(str(video.path)))
@@ -701,8 +763,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.player.playbackState() == PlaybackState.StoppedState and self.player.mediaStatus() == MediaStatus.NoMedia:
             return
         self._record_position()
-        self._resume_ready = False        # le retour de la position à 0 ne doit pas effacer la reprise qu'on vient d'enregistrer
-        self._resume_seeking = False
+        self.session.unload()             # le retour de la position à 0 ne doit pas effacer la reprise qu'on vient d'enregistrer
         self._resume_timer.stop()
         self.unload_media()
         self.player_widget.slider.setValue(0)
@@ -737,29 +798,24 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _on_media_loaded(self):
         video = self._loaded_video
-        self._error_streak = 0
         duration = self.player.duration()
+        seek_to = self.session.on_loaded(duration)
         self.toolbar_widget.time_label.set_times(total_time=self.player_widget.position_to_hms(duration))
         if video is not None:
             size = self._media_resolution()
             changed = video.update_metadata(width=size.width(), height=size.height(), duration=duration)
             if changed:
                 self.active_playlist.mark_dirty()
-            if self._resume_target > 0 and duration > self._resume_target:
+            if seek_to is not None:
                 # Tant que le lecteur n'a pas atteint la position de reprise, ses positions « avant saut »
                 # ne doivent pas écraser la mémoire de reprise.
-                self._resume_seeking = True
                 self._resume_timer.start()
-                self.player.setPosition(self._resume_target)
-                self.flash(f"Reprise à {format_duration(self._resume_target)}")
-                self._update_titles()
-                return
-        self._resume_ready = True
+                self.player.setPosition(seek_to)
+                self.flash(f"Reprise à {format_duration(seek_to)}")
         self._update_titles()
 
     def _finish_resume_seek(self):
-        self._resume_seeking = False
-        self._resume_ready = self._loaded_video is not None
+        self.session.finish_resume_seek()
         self._resume_timer.stop()
 
     def _on_media_ended(self):
@@ -767,8 +823,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if video is not None:
             self.resume.mark_finished(video.path)
             self._update_item_progress(video, 1.0, True)
-        self._resume_ready = False
-        self._resume_seeking = False
+        self.session.on_ended()
 
         playlist = self.active_playlist
         nxt = playlist.next(auto=True) if video is not None else None
@@ -780,7 +835,7 @@ class MainWindow(QtWidgets.QMainWindow):
             # Boucle sur le fichier : on rembobine sans recharger.
             self.player.setPosition(0)
             self.player.play()
-            self._resume_ready = True
+            self.session.resume_ready = True
         else:
             self.play_video(nxt, silent_if_missing=True)
 
@@ -789,8 +844,7 @@ class MainWindow(QtWidgets.QMainWindow):
         message = self.player.errorString() or "format non pris en charge"
         self.flash(f"Lecture impossible : {video.name if video else ''} — {message}", 6000)
         logger.warning("Média invalide %s : %s", video.path if video else "?", message)
-        self._error_streak += 1
-        if video is not None and self._error_streak <= len(self.active_playlist):
+        if self.session.on_invalid(len(self.active_playlist)):
             QtCore.QTimer.singleShot(600, self._skip_after_error)
 
     def _skip_after_error(self):
@@ -818,13 +872,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def on_position_changed(self, position: int):
         self.toolbar_widget.time_label.set_times(current_time=self.player_widget.position_to_hms(position))
-        if self._ab_b is not None and self._ab_a is not None and position >= self._ab_b:
-            self.player.setPosition(self._ab_a)
+        loop_back = self.session.on_position(position)
+        if loop_back is not None:
+            self.player.setPosition(loop_back)
             return
         if self._subtitles is not None:
             self.player_widget.set_subtitle_text(self._subtitles.text_at(position))
-        if self._resume_seeking and abs(position - self._resume_target) <= 1500:
-            self._finish_resume_seek()
+        if not self.session.resume_seeking and self._resume_timer.isActive():
+            self._resume_timer.stop()
         if self._resume_ready:
             self._record_position(position)
 
@@ -939,22 +994,20 @@ class MainWindow(QtWidgets.QMainWindow):
     def cycle_ab_loop(self):
         if self.player.mediaStatus() in (MediaStatus.NoMedia, MediaStatus.InvalidMedia):
             return
-        if self._ab_a is None:
-            self._ab_a = self.player.position()
+        outcome = self.session.cycle_ab(self.player.position())
+        if outcome == "a":
             self.flash(f"Boucle A-B : début A à {format_duration(self._ab_a)}")
-        elif self._ab_b is None:
-            if self.player.position() <= self._ab_a + 500:
-                self.flash("Boucle A-B : B doit être après A")
-                return
-            self._ab_b = self.player.position()
+        elif outcome == "too_early":
+            self.flash("Boucle A-B : B doit être après A")
+            return
+        elif outcome == "b":
             self.flash(f"Boucle A-B : {format_duration(self._ab_a)} → {format_duration(self._ab_b)}")
         else:
-            self._clear_ab_loop()
+            self.flash("Boucle A-B effacée")
         self._update_status_info()
 
     def _clear_ab_loop(self, silent: bool = False):
-        had_loop = self._ab_a is not None
-        self._ab_a = self._ab_b = None
+        had_loop = self.session.clear_ab()
         if had_loop and not silent:
             self.flash("Boucle A-B effacée")
         self._update_status_info()

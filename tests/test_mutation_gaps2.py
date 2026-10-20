@@ -195,3 +195,51 @@ def test_resolution_and_aspect_need_both_dimensions():
 def test_as_int_never_raises():
     assert _as_int(float("inf")) == 0 and _as_int("x") == 0 and _as_int(None) == 0 and _as_int(-5) == 0
     assert _as_int("42") == 42 and _as_int(7.9) == 7 and _as_int(10 ** 400) == 10 ** 400
+
+
+# ----------------------------------------------------------------- campagne n°3 : survivants restants
+def test_aspect_ratio_never_divides_by_zero():
+    assert Video(path=Path("a.mp4"), width=640, height=0).aspect_ratio == 0.0
+    assert Video(path=Path("a.mp4"), width=0, height=480).aspect_ratio == 0.0
+    assert Video(path=Path("a.mp4"), width=1920, height=1080).aspect_ratio == 1.778
+
+
+def test_video_parent_is_the_containing_folder(tmp_path):
+    assert Video(path=tmp_path / "a.mp4").parent == tmp_path
+
+
+def test_register_marks_a_playlist_dirty_after_changing_a_colliding_id(isolated_home):
+    manager = PlaylistManager(isolated_home)
+    clone = Playlist("copie")
+    clone.id = manager.playlists[0].id
+    clone.dirty = False
+    manager._register(clone)
+    assert clone.id != manager.playlists[0].id and clone.dirty
+
+
+def test_import_playlist_file_writes_the_playlist_immediately(isolated_home, tmp_path):
+    media_file = tmp_path / "a.mp3"
+    media_file.write_bytes(b"x")
+    m3u = tmp_path / "liste.m3u"
+    m3u.write_text(f"#EXTM3U\n{media_file}\n", encoding="utf-8")
+    manager = PlaylistManager(isolated_home)
+    imported = manager.import_playlist_file(m3u)
+    assert imported.file_path is not None and imported.file_path.is_file() and not imported.dirty
+
+
+def test_legacy_current_index_zero_selects_the_first_video(tmp_path):
+    files = []
+    for name in ("a.mp4", "b.mp4"):
+        (tmp_path / name).write_bytes(b"x")
+        files.append({"path": str(tmp_path / name), "name": name})
+    data = {"name": "Ancienne", "videos": files, "current_index": 0}
+    playlist = Playlist.from_dict(data)
+    assert playlist.current is not None and playlist.current.name == "a.mp4"
+
+
+def test_set_current_with_an_unknown_target_keeps_the_current_video(tmp_path):
+    playlist = Playlist("p")
+    (tmp_path / "a.mp4").write_bytes(b"x")
+    playlist.add(tmp_path / "a.mp4")
+    first = playlist.set_current(0)
+    assert playlist.set_current("inconnu.mp4") is first and playlist.current is first
