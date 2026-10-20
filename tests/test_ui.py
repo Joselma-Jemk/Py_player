@@ -494,16 +494,31 @@ def test_delete_dialog_returns_ids_for_same_named_playlists(qapp):
     dialog.deleteLater()
 
 
-def send_from_other_thread(app, instance, paths, enqueue=False) -> bool:
-    """Envoie comme le ferait une seconde instance (un autre processus) : depuis un thread à part, pendant que la
-    boucle d'événements du serveur tourne. Dans un même thread, les tubes nommés de Windows bloquent le client."""
-    import threading
-    result = []
-    worker = threading.Thread(target=lambda: result.append(instance.send_to_running(paths, enqueue)))
-    worker.start()
-    assert wait_until(app, lambda: bool(result), 10)
-    worker.join()
-    return result[0]
+_SEND_SCRIPT = (
+    "import json, sys\n"
+    "from PySide6 import QtCore\n"
+    "app = QtCore.QCoreApplication([])\n"
+    "from pyplayer.ui.single_instance import SingleInstance\n"
+    "ok = SingleInstance(name=sys.argv[1]).send_to_running(json.loads(sys.argv[2]), enqueue=sys.argv[3] == '1')\n"
+    "sys.exit(0 if ok else 3)\n"
+)
+
+
+def send_from_another_process(app, name, paths, enqueue=False) -> bool:
+    """Envoie comme le fait « Ouvrir avec… » : depuis un VRAI second processus, pendant que la boucle d'événements du
+    serveur tourne (dans un même thread, les tubes nommés de Windows bloquent le client : ce n'est pas le vrai cas)."""
+    import json
+    import sys
+    root = Path(__file__).resolve().parent.parent
+    env = {**os.environ, "QT_QPA_PLATFORM": "offscreen", "PYTHONPATH": str(root / "src")}
+    proc = subprocess.Popen([sys.executable, "-c", _SEND_SCRIPT, name, json.dumps(paths), "1" if enqueue else "0"],
+                            env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        assert wait_until(app, lambda: proc.poll() is not None, 30), "le second processus ne se termine pas"
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+    return proc.returncode == 0
 
 
 def test_single_instance_forwards_paths(qapp):
@@ -514,7 +529,7 @@ def test_single_instance_forwards_paths(qapp):
     server.message_received.connect(lambda paths, enqueue: received.append((paths, enqueue)))
     assert client.send_to_running(["/x/a.mp4"]) is False   # personne n'écoute encore
     assert server.listen()
-    assert send_from_other_thread(qapp, client, ["/x/a.mp4", "/x/b.mp4"], enqueue=True)
+    assert send_from_another_process(qapp, name, ["/x/a.mp4", "/x/b.mp4"], enqueue=True)
     assert wait_until(qapp, lambda: bool(received), 3)
     assert received[0] == (["/x/a.mp4", "/x/b.mp4"], True)
     server.close()
@@ -539,9 +554,8 @@ def test_single_instance_survives_many_clients_garbage_and_teardown(qapp):
     received = []
     server.message_received.connect(lambda paths, enqueue: received.append((tuple(paths), enqueue)))
     assert server.listen()
-    clients = [SingleInstance(name=name) for _ in range(5)]
-    for i in range(25):
-        assert send_from_other_thread(qapp, clients[i % 5], [f"/m/{i}.mp4"], enqueue=bool(i % 2))
+    for i in range(10):
+        assert send_from_another_process(qapp, name, [f"/m/{i}.mp4"], enqueue=bool(i % 2))
     # données invalides : ni JSON, ni UTF-8, ni objet attendu
     for payload in (b"not json", b"\xff\xfe\x00", b"[1,2,3]", b'{"paths": 5}', b"", b'{"paths": ["/ok.mp4"]}'):
         raw = QtNetwork.QLocalSocket()
@@ -553,11 +567,11 @@ def test_single_instance_survives_many_clients_garbage_and_teardown(qapp):
         raw.disconnectFromServer()
         pump(qapp, 20)
         raw.abort()
-    assert wait_until(qapp, lambda: len(received) >= 26, 5), len(received)
+    assert wait_until(qapp, lambda: len(received) >= 11, 5), len(received)
     assert received[:3] == [(("/m/0.mp4",), False), (("/m/1.mp4",), True), (("/m/2.mp4",), False)]
     assert (("/ok.mp4",), False) in received and not any(p == ("5",) for p, _ in received)
     server.close()
-    del clients, server
+    del server
     pump(qapp, 150)                      # des événements différés doivent pouvoir être traités sans plantage
     gc_roundtrip = SingleInstance(name=name)
     assert gc_roundtrip.send_to_running(["/x"]) is False   # plus personne n'écoute
