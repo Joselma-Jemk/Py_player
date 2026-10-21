@@ -316,6 +316,8 @@ class MenuBarWidget(QtWidgets.QMenuBar):
         self.act_full_screen_mode.setShortcuts([QtGui.QKeySequence("F11"), QtGui.QKeySequence("F")])
         self.act_always_on_top = self._action(menu, "keep", "Toujours au premier plan", "Ctrl+T")
         self.act_always_on_top.setCheckable(True)
+        self.act_statusbar_autohide = self._action(menu, "infos", "Masquer la barre d'état après 4 s")
+        self.act_statusbar_autohide.setCheckable(True)
 
     def playlistMenu_customize(self):
         self.addMenu(self.playlistMenu)
@@ -348,6 +350,7 @@ class MenuBarWidget(QtWidgets.QMenuBar):
         menu.addSeparator()
         self.act_help = self._action(menu, "help", "Aide et raccourcis", "F1")
         self.act_open_logs = self._action(menu, "infos", "Ouvrir le dossier des journaux")
+        self.act_reset_data = self._action(menu, "playlist_remove", "Réinitialiser PyPlayer…")
         self.act_about = self._action(menu, "infos", "À propos")
 
     def all_actions(self) -> list[QtGui.QAction]:

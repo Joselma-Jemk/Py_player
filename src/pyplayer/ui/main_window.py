@@ -10,7 +10,7 @@ from pathlib import Path
 from PySide6 import QtCore, QtGui, QtMultimedia, QtWidgets
 
 from pyplayer import APP_NAME
-from pyplayer.api import media, paths
+from pyplayer.api import media, paths, reset
 from pyplayer.api.manager import PlaylistManager
 from pyplayer.api.media import format_duration, format_size
 from pyplayer.api.playback import PlaybackSession
@@ -18,7 +18,7 @@ from pyplayer.api.playlist import PlayMode, Playlist
 from pyplayer.api.subtitles import SubtitleTrack, find_sidecar, load_subtitle_file
 from pyplayer.api.video import Video
 from pyplayer.ui import theme
-from pyplayer.ui.dialogs import AboutDialog, MediaInfoDialog, NewPlaylistDialog
+from pyplayer.ui.dialogs import AboutDialog, MediaInfoDialog, NewPlaylistDialog, ResetDataDialog
 from pyplayer.ui.power import SleepInhibitor
 from pyplayer.ui.widget.dock_widget import DeletePlaylistDialog, DockWidget, VideoListItem
 from pyplayer.ui.widget.menu_bar import HelpDialog, MenuBarWidget
@@ -122,6 +122,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings = self.manager.settings
         self.resume = self.manager.resume
         self.inhibitor = SleepInhibitor()
+        self._skip_save_on_close = False
 
         self.session = PlaybackSession()           # état de lecture explicite (api/playback.py)
         self._was_maximized = False
@@ -240,6 +241,7 @@ class MainWindow(QtWidgets.QMainWindow):
         m.act_screenshot.triggered.connect(self.take_screenshot)
         m.act_full_screen_mode.triggered.connect(self.toggle_fullscreen)
         m.act_always_on_top.toggled.connect(self.set_always_on_top)
+        m.act_statusbar_autohide.toggled.connect(self.set_statusbar_autohide)
 
         # Menu Playlist
         m.act_show_playlist.triggered.connect(self.playlist_show_or_hide)
@@ -256,6 +258,7 @@ class MainWindow(QtWidgets.QMainWindow):
         m.act_reveal_file.triggered.connect(self.reveal_current_file)
         m.act_help.triggered.connect(self.show_help_dialog)
         m.act_open_logs.triggered.connect(self.open_log_folder)
+        m.act_reset_data.triggered.connect(self.reset_app_data)
         m.act_about.triggered.connect(self.about_pyplayer)
 
         # Raccourcis spécifiques à la fenêtre
@@ -334,6 +337,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.set_aspect_mode(s.get("aspect_mode"), save=False)
         self.menubar_widget.act_always_on_top.setChecked(bool(s.get("always_on_top")))
+        autohide = bool(s.get("statusbar_autohide"))
+        self.menubar_widget.act_statusbar_autohide.setChecked(autohide)
+        self.statusbar_widget.set_auto_hide(autohide)
 
         volume = self.manager.volume
         self.audio_output.setVolume(volume)          # valeur explicite : plus de dépendance au signal du slider
@@ -349,9 +355,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings.set("playlist_panel_visible", self.dock_widget.isVisible())
 
     def closeEvent(self, event):
-        self._record_position()
-        self.save_window_state()
-        self.manager.flush()
+        if not self._skip_save_on_close:               # après une réinitialisation, on n'écrit plus rien
+            self._record_position()
+            self.save_window_state()
+            self.manager.flush()
         self.inhibitor.set_active(False)
         self.unload_media()
         super().closeEvent(event)
@@ -529,7 +536,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.session.begin_load(None)
         self.player.setSource(url)
         self.player.play()
-        self.statusbar_widget.lbl_title.setText(f"     🌐  {url.toString()}")
+        self.statusbar_widget.set_title(f"     🌐  {url.toString()}")
         self.setWindowTitle(f"{url.fileName() or url.host()} — {APP_NAME}")
 
     def open_paths(self, raw_paths, *, enqueue: bool = False):
@@ -867,6 +874,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.toolbar_widget.player_controls.btn_stop.setEnabled(not stopped)
         self.menubar_widget.act_stop.setEnabled(not stopped)
         self.inhibitor.set_active(playing and self.player.hasVideo())
+        self.statusbar_widget.set_playing(playing)
         if stopped:
             self._update_titles()
 
@@ -910,14 +918,14 @@ class MainWindow(QtWidgets.QMainWindow):
     def _update_titles(self):
         video = self._loaded_video
         if video is None or self.player.mediaStatus() == MediaStatus.NoMedia:
-            self.statusbar_widget.lbl_title.setText("   Pas de média en cours")
+            self.statusbar_widget.set_title("   Pas de média en cours")
             self.setWindowTitle(APP_NAME)
             return
         item = self.dock_widget.find_item(video)
         index = item.index if item else self.active_playlist.index_of(video) + 1
         resolution = video.resolution
         extra = f" ▌ Résolution : {resolution}" if resolution else ""
-        self.statusbar_widget.lbl_title.setText(f"     {index} ➤  {video.name}{extra}")
+        self.statusbar_widget.set_title(f"     {index} ➤  {video.name}{extra}")
         self.setWindowTitle(f"{video.name} — {APP_NAME}")
         self._update_status_info()
 
@@ -1211,6 +1219,10 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.flash("Impossible d'enregistrer la capture")
 
+    def set_statusbar_autohide(self, enabled: bool):
+        self.settings.set("statusbar_autohide", bool(enabled))
+        self.statusbar_widget.set_auto_hide(bool(enabled))
+
     def set_always_on_top(self, enabled: bool):
         self.settings.set("always_on_top", bool(enabled))
         was_visible = self.isVisible()
@@ -1330,6 +1342,36 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def open_log_folder(self):
         QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(paths.data_dir())))
+
+    def choose_reset_categories(self) -> list[str]:
+        """Dialogue de réinitialisation ; retourne les catégories à supprimer (vide si annulé). Remplaçable en test."""
+        dialog = ResetDataDialog(self, self.manager.data_dir)
+        return dialog.selected_categories() if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted else []
+
+    def reset_app_data(self):
+        """Supprime les données choisies puis ferme PyPlayer : la fermeture ne doit rien réécrire."""
+        categories = self.choose_reset_categories()
+        if not categories:
+            return
+        self.stop_playing()
+        self._skip_save_on_close = True                 # sinon closeEvent recréerait playlists et réglages
+        self._flush_timer.stop()
+        report = reset.reset_data(self.manager.data_dir, categories)
+        logger.info("Réinitialisation : %d fichier(s) supprimé(s), %s libérés, %d erreur(s)",
+                    report.deleted_files, reset.format_size(report.freed_bytes), len(report.errors))
+        text = f"{report.deleted_files} fichier(s) supprimé(s) ({reset.format_size(report.freed_bytes)})."
+        if report.errors:
+            text += "\n\nNon supprimés :\n" + "\n".join(report.errors[:8])
+        self.inform("PyPlayer réinitialisé", text + "\n\nPyPlayer va se fermer. Relancez-le pour repartir de zéro.")
+        self.close()
+
+    def inform(self, title: str, message: str) -> None:
+        """Message d'information. Isolé pour pouvoir être remplacé dans les tests."""
+        box = QtWidgets.QMessageBox(self)
+        box.setWindowTitle(title)
+        box.setText(message)
+        box.setIcon(QtWidgets.QMessageBox.Icon.Information)
+        box.exec()
 
     # ===================================================================
     # MENUS CONTEXTUELS

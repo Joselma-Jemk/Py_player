@@ -320,3 +320,73 @@ class MediaInfoDialog(QtWidgets.QDialog):
         buttons.addWidget(copy)
         buttons.addWidget(close)
         layout.addLayout(buttons)
+
+
+class ResetDataDialog(QtWidgets.QDialog):
+    """Suppression des données de l'application : l'utilisateur voit ce qui sera supprimé, choisit, puis confirme."""
+
+    def __init__(self, parent=None, home: Path | None = None):
+        super().__init__(parent)
+        from pyplayer.api import reset
+        self._reset = reset
+        self.home = Path(home) if home else paths.data_dir()
+        self.setWindowTitle("Réinitialiser PyPlayer")
+        self.setModal(True)
+        self.setMinimumWidth(500)
+        self.setStyleSheet(f"""
+            QDialog {{ background-color: {constant.PRINCIPAL_COLOR}; color: {constant.PRINCIPAL_TEXT_COLOR}; }}
+            QLabel, QCheckBox {{ color: {constant.PRINCIPAL_TEXT_COLOR}; }}
+            QCheckBox {{ padding: 4px 0; }}
+            QPushButton {{ padding: 8px 16px; border-radius: 6px; font-weight: 600; }}
+        """)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(10)
+
+        heading = QtWidgets.QLabel("Supprimer les données de l'application")
+        heading.setStyleSheet("font-size: 16px; font-weight: bold;")
+        layout.addWidget(heading)
+        where = QtWidgets.QLabel(f"Dossier : {self.home}")
+        where.setStyleSheet("color: #a0a0a0; font-size: 12px;")
+        where.setWordWrap(True)
+        where.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
+        layout.addWidget(where)
+        note = QtWidgets.QLabel("Vos fichiers vidéo et audio ne sont jamais touchés, seulement les données de PyPlayer. "
+                                "Cette action est <b>irréversible</b>.")
+        note.setWordWrap(True)
+        layout.addWidget(note)
+
+        self.checks: dict[str, QtWidgets.QCheckBox] = {}
+        for info in reset.summarize(self.home):
+            box = QtWidgets.QCheckBox(f"{info.label}  —  {info.files} fichier(s), {reset.format_size(info.size)}")
+            box.setChecked(True)
+            box.setEnabled(info.files > 0)
+            box.toggled.connect(self._update_state)
+            self.checks[info.key] = box
+            layout.addWidget(box)
+
+        self.confirm_box = QtWidgets.QCheckBox("Je comprends que ces données seront définitivement supprimées")
+        self.confirm_box.toggled.connect(self._update_state)
+        layout.addSpacing(6)
+        layout.addWidget(self.confirm_box)
+
+        buttons = QtWidgets.QHBoxLayout()
+        buttons.addStretch()
+        self.btn_cancel = QtWidgets.QPushButton("Annuler")
+        self.btn_cancel.setStyleSheet(_flat_button_style())
+        self.btn_reset = QtWidgets.QPushButton("Tout supprimer")
+        self.btn_reset.setStyleSheet(_flat_button_style(color=constant.ACCENT_COLOR, hover_bg=constant.ACCENT_COLOR,
+                                                        hover_color="white"))
+        self.btn_cancel.clicked.connect(self.reject)
+        self.btn_reset.clicked.connect(self.accept)
+        buttons.addWidget(self.btn_cancel)
+        buttons.addWidget(self.btn_reset)
+        layout.addLayout(buttons)
+        self.btn_cancel.setDefault(True)
+        self._update_state()
+
+    def selected_categories(self) -> list[str]:
+        return [key for key, box in self.checks.items() if box.isChecked() and box.isEnabled()]
+
+    def _update_state(self, *_):
+        self.btn_reset.setEnabled(self.confirm_box.isChecked() and bool(self.selected_categories()))

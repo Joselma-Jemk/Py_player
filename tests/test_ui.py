@@ -575,3 +575,89 @@ def test_single_instance_survives_many_clients_garbage_and_teardown(qapp):
     pump(qapp, 150)                      # des événements différés doivent pouvoir être traités sans plantage
     gc_roundtrip = SingleInstance(name=name)
     assert gc_roundtrip.send_to_running(["/x"]) is False   # plus personne n'écoute
+
+
+# ----------------------------------------------------------------- réinitialisation des données
+def test_reset_app_data_deletes_everything_and_close_does_not_recreate_it(window, qapp, monkeypatch):
+    from pyplayer.api import reset
+    home = window.manager.data_dir
+    window.manager.create_playlist("Jazz")
+    window.manager.flush()
+    window.settings.set("volume", 0.9)
+    window.manager.flush()
+    assert (home / "settings.json").exists() and any((home / "playlists").glob("*.json"))
+    monkeypatch.setattr(window, "choose_reset_categories", lambda: list(reset.ALL_CATEGORIES))
+    shown = []
+    monkeypatch.setattr(window, "inform", lambda title, message: shown.append(message))
+    window.reset_app_data()
+    pump(qapp, 100)
+    assert shown and "supprimé" in shown[0] and not window.isVisible()
+    assert not (home / "settings.json").exists() and not (home / "resume.json").exists()
+    assert not list((home / "playlists").glob("*.json")) if (home / "playlists").exists() else True
+
+
+def test_reset_app_data_cancelled_changes_nothing(window, qapp, monkeypatch):
+    home = window.manager.data_dir
+    window.manager.flush()
+    window.settings.set("volume", 0.3)
+    window.manager.flush()
+    monkeypatch.setattr(window, "choose_reset_categories", lambda: [])
+    window.reset_app_data()
+    assert window.isVisible() and (home / "settings.json").exists()
+
+
+def test_reset_dialog_requires_confirmation_and_a_selection(qapp, isolated_home):
+    from pyplayer.ui.dialogs import ResetDataDialog
+    isolated_home.mkdir(parents=True, exist_ok=True)
+    (isolated_home / "resume.json").write_text("{}", encoding="utf-8")
+    dialog = ResetDataDialog(None, isolated_home)
+    assert not dialog.btn_reset.isEnabled()                       # pas de confirmation : bouton inactif
+    dialog.confirm_box.setChecked(True)
+    assert dialog.btn_reset.isEnabled() and dialog.selected_categories() == ["resume"]
+    dialog.checks["resume"].setChecked(False)
+    assert not dialog.btn_reset.isEnabled()                       # plus rien de sélectionné
+    assert not dialog.checks["settings"].isEnabled()              # catégorie vide : non cochable
+    dialog.deleteLater()
+
+
+# ----------------------------------------------------------------- barre d'état : masquage automatique
+def test_statusbar_fades_after_4s_of_playback_and_returns_on_hover_message_and_title(qapp, monkeypatch):
+    from pyplayer.ui.widget import staturbar_widget as sb
+    monkeypatch.setattr(sb, "HIDE_DELAY_MS", 40)
+    monkeypatch.setattr(sb, "FADE_MS", 10)
+    bar = sb.StatusBar()
+    bar._idle.setInterval(40)
+    bar._fade.setDuration(10)
+    bar.show()
+    pump(qapp, 50)
+    qapp.sendEvent(bar, QtCore.QEvent(QtCore.QEvent.Type.Leave))        # le pointeur factice du mode hors écran entre à l'affichage
+    assert bar.opacity == 1.0
+    bar.set_playing(False)
+    pump(qapp, 120)
+    assert bar.opacity == 1.0                                   # en pause : toujours visible
+    bar.set_playing(True)
+    assert wait_until(qapp, lambda: bar.opacity < 0.05, 2)     # lecture : s'efface
+    bar.showMessage("Reprise à 03:13", 500)
+    assert wait_until(qapp, lambda: bar.opacity > 0.95, 2)     # un message la ramène
+    assert wait_until(qapp, lambda: bar.opacity < 0.05, 2)     # puis elle s'efface de nouveau
+    bar.set_title("   nouveau titre")
+    assert wait_until(qapp, lambda: bar.opacity > 0.95, 2)     # un nouveau titre la ramène
+    assert wait_until(qapp, lambda: bar.opacity < 0.05, 2)
+    qapp.sendEvent(bar.lbl_title, QtCore.QEvent(QtCore.QEvent.Type.Enter))    # le survol la ramène et la garde
+    assert wait_until(qapp, lambda: bar.opacity > 0.95, 2)
+    pump(qapp, 150)
+    assert bar.opacity > 0.95
+    qapp.sendEvent(bar, QtCore.QEvent(QtCore.QEvent.Type.Leave))               # le pointeur part : elle s'efface
+    assert wait_until(qapp, lambda: bar.opacity < 0.05, 2)
+    qapp.sendEvent(bar.lbl_title, QtCore.QEvent(QtCore.QEvent.Type.Enter))
+    assert wait_until(qapp, lambda: bar.opacity > 0.95, 2)
+    bar.set_auto_hide(False)                                    # option désactivée : jamais masquée
+    pump(qapp, 150)
+    assert bar.opacity == 1.0
+    bar.deleteLater()
+
+
+def test_statusbar_autohide_setting_is_saved_and_restored(window, qapp):
+    assert window.menubar_widget.act_statusbar_autohide.isChecked()           # activé par défaut
+    window.menubar_widget.act_statusbar_autohide.setChecked(False)
+    assert window.settings.get("statusbar_autohide") is False and window.statusbar_widget.opacity == 1.0
