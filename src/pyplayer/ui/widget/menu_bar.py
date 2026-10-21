@@ -318,6 +318,8 @@ class MenuBarWidget(QtWidgets.QMenuBar):
         self.act_always_on_top.setCheckable(True)
         self.act_statusbar_autohide = self._action(menu, "infos", "Masquer la barre d'état après 4 s")
         self.act_statusbar_autohide.setCheckable(True)
+        self.act_thumbnails = self._action(menu, "infos", "Miniatures sur la barre de progression")
+        self.act_thumbnails.setCheckable(True)
 
     def playlistMenu_customize(self):
         self.addMenu(self.playlistMenu)

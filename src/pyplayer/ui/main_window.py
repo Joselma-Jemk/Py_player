@@ -242,6 +242,7 @@ class MainWindow(QtWidgets.QMainWindow):
         m.act_full_screen_mode.triggered.connect(self.toggle_fullscreen)
         m.act_always_on_top.toggled.connect(self.set_always_on_top)
         m.act_statusbar_autohide.toggled.connect(self.set_statusbar_autohide)
+        m.act_thumbnails.toggled.connect(self.set_thumbnails)
 
         # Menu Playlist
         m.act_show_playlist.triggered.connect(self.playlist_show_or_hide)
@@ -337,6 +338,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.set_aspect_mode(s.get("aspect_mode"), save=False)
         self.menubar_widget.act_always_on_top.setChecked(bool(s.get("always_on_top")))
+        thumbs = bool(s.get("thumbnails"))
+        self.menubar_widget.act_thumbnails.setChecked(thumbs)
+        self.player_widget.set_thumbnails_enabled(thumbs)
         autohide = bool(s.get("statusbar_autohide"))
         self.menubar_widget.act_statusbar_autohide.setChecked(autohide)
         self.statusbar_widget.set_auto_hide(autohide)
@@ -361,6 +365,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.manager.flush()
         self.inhibitor.set_active(False)
         self.unload_media()
+        self.player_widget.bubble.hide()
         super().closeEvent(event)
 
     def flash(self, message: str, timeout_ms: int = 4000):
@@ -765,6 +770,7 @@ class MainWindow(QtWidgets.QMainWindow):
         avec le backend FFmpeg de Qt 6, ``stop()`` se bloque définitivement par intermittence (reproduit avec Qt seul :
         0 série sur 4 de 150 itérations aboutit avec ``stop()``, 4 sur 4 avec ``setSource(QUrl())``)."""
         self.player.setSource(QtCore.QUrl())
+        self.player_widget.set_thumbnail_source(None)
 
     def stop_playing(self):
         if self.player.playbackState() == PlaybackState.StoppedState and self.player.mediaStatus() == MediaStatus.NoMedia:
@@ -808,6 +814,9 @@ class MainWindow(QtWidgets.QMainWindow):
         duration = self.player.duration()
         seek_to = self.session.on_loaded(duration)
         self.toolbar_widget.time_label.set_times(total_time=self.player_widget.position_to_hms(duration))
+        # Miniatures au survol de la barre : seulement pour une vidéo locale (ni audio, ni flux réseau).
+        has_thumbs = video is not None and self.player.hasVideo() and video.path.is_file()
+        self.player_widget.set_thumbnail_source(str(video.path) if has_thumbs else None, duration)
         if video is not None:
             size = self._media_resolution()
             changed = video.update_metadata(width=size.width(), height=size.height(), duration=duration)
@@ -1049,6 +1058,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.player.loops() == QtMultimedia.QMediaPlayer.Loops.Infinite:
             parts.append("🔁")
         self.statusbar_widget.set_info("  ".join(parts))
+        self.player_widget.slider.set_loop(self._ab_a, self._ab_b)
 
     # ===================================================================
     # PISTES AUDIO / SOUS-TITRES
@@ -1218,6 +1228,13 @@ class MainWindow(QtWidgets.QMainWindow):
             self.flash(f"Capture enregistrée : {target}", 6000)
         else:
             self.flash("Impossible d'enregistrer la capture")
+
+    def set_thumbnails(self, enabled: bool):
+        self.settings.set("thumbnails", bool(enabled))
+        self.player_widget.set_thumbnails_enabled(bool(enabled))
+        video = self._loaded_video
+        if enabled and video is not None and self.player.hasVideo() and video.path.is_file():
+            self.player_widget.set_thumbnail_source(str(video.path), self.player.duration())
 
     def set_statusbar_autohide(self, enabled: bool):
         self.settings.set("statusbar_autohide", bool(enabled))
