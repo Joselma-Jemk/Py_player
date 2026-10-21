@@ -29,8 +29,22 @@ def _normalize(items: list[str]) -> list[str]:
     return [item if "://" in item else os.path.abspath(item) for item in items]
 
 
+def run_ytdlp(arguments: list[str]) -> int:
+    """Mode « yt-dlp » : l'exécutable de PyPlayer lance le module yt-dlp embarqué (téléchargements d'un binaire autonome,
+    sans Python installé). Aucune interface n'est créée."""
+    import yt_dlp
+    try:
+        yt_dlp.main(arguments)
+    except SystemExit as stop:
+        return int(stop.code or 0) if isinstance(stop.code, int) or stop.code is None else 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv if argv is not None else sys.argv[1:])
+    arguments = argv if argv is not None else sys.argv[1:]
+    if arguments and arguments[0] == "--ytdlp-run":
+        return run_ytdlp(arguments[1:])
+    args = build_parser().parse_args(arguments)
     os.environ.setdefault("QT_MEDIA_BACKEND", "ffmpeg")
 
     from pyplayer.api import paths
