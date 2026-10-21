@@ -179,7 +179,7 @@ def test_open_file_queues_siblings_in_natural_order_and_plays_selected(window, q
 def test_playlist_autoplays_next_then_stops_at_end(window, qapp, sample_dir):
     window.open_paths([str(sample_dir / "ep1.mp4")])
     assert wait_until(qapp, lambda: window._loaded_video and window._loaded_video.name == "ep10.mp4", 25)
-    assert wait_until(qapp, lambda: window.statusBar().currentMessage() == "Fin de la playlist", 15)
+    assert wait_until(qapp, lambda: window.osd.currentMessage() == "Fin de la playlist", 15)
     assert window.player.playbackState() == QtMultimedia.QMediaPlayer.PlaybackState.StoppedState
     assert window.resume.is_finished(sample_dir / "ep1.mp4") and window.resume.is_finished(sample_dir / "ep10.mp4")
     assert window.player_widget.placeholder_label.isVisible()
@@ -267,7 +267,7 @@ def test_next_at_end_of_playlist_does_not_replay(window, qapp, sample_dir):
     window.next_video()  # dernier de la liste, mode normal
     pump(qapp, 200)
     assert window.player.position() >= position_before  # pas de rejeu depuis 0 (audit 2.4)
-    assert window.statusBar().currentMessage() == "Fin de la playlist"
+    assert window.osd.currentMessage() == "Fin de la playlist"
 
 
 @needs_ffmpeg
@@ -307,7 +307,7 @@ def test_speed_and_ab_loop(window, qapp, tmp_path):
     window.player.setPosition(a + 1500)
     pump(qapp, 150)
     window.cycle_ab_loop()                       # B
-    assert window._ab_b is not None and "A-B" in window.statusbar_widget.lbl_info.text()
+    assert window._ab_b is not None and "A-B" in window.osd.info_text
     assert wait_until(qapp, lambda: window.player.position() < window._ab_b - 500, 6)  # a rebouclé vers A
     window.cycle_ab_loop()                       # effacer
     assert window._ab_a is None and window._ab_b is None
@@ -329,7 +329,7 @@ def test_screenshot_is_saved(window, qapp, sample_dir, tmp_path):
     assert wait_until(qapp, lambda: window.player.position() > 300)
     window.take_screenshot()
     shots = list((tmp_path / "userhome").rglob("*.png"))
-    assert shots, window.statusBar().currentMessage()
+    assert shots, window.osd.currentMessage()
     assert QtGui.QImage(str(shots[0])).width() > 0
 
 
@@ -621,44 +621,52 @@ def test_reset_dialog_requires_confirmation_and_a_selection(qapp, isolated_home)
     dialog.deleteLater()
 
 
-# ----------------------------------------------------------------- barre d'état : masquage automatique
-def test_statusbar_fades_after_4s_of_playback_and_returns_on_hover_message_and_title(qapp, monkeypatch):
-    from pyplayer.ui.widget import staturbar_widget as sb
-    monkeypatch.setattr(sb, "HIDE_DELAY_MS", 40)
-    monkeypatch.setattr(sb, "FADE_MS", 10)
-    bar = sb.StatusBar()
-    bar._idle.setInterval(40)
-    bar._fade.setDuration(10)
-    bar.show()
-    pump(qapp, 50)
-    qapp.sendEvent(bar, QtCore.QEvent(QtCore.QEvent.Type.Leave))        # le pointeur factice du mode hors écran entre à l'affichage
-    assert bar.opacity == 1.0
-    bar.set_playing(False)
-    pump(qapp, 120)
-    assert bar.opacity == 1.0                                   # en pause : toujours visible
-    bar.set_playing(True)
-    assert wait_until(qapp, lambda: bar.opacity < 0.05, 2)     # lecture : s'efface
-    bar.showMessage("Reprise à 03:13", 500)
-    assert wait_until(qapp, lambda: bar.opacity > 0.95, 2)     # un message la ramène
-    assert wait_until(qapp, lambda: bar.opacity < 0.05, 2)     # puis elle s'efface de nouveau
-    bar.set_title("   nouveau titre")
-    assert wait_until(qapp, lambda: bar.opacity > 0.95, 2)     # un nouveau titre la ramène
-    assert wait_until(qapp, lambda: bar.opacity < 0.05, 2)
-    qapp.sendEvent(bar.lbl_title, QtCore.QEvent(QtCore.QEvent.Type.Enter))    # le survol la ramène et la garde
-    assert wait_until(qapp, lambda: bar.opacity > 0.95, 2)
-    pump(qapp, 150)
-    assert bar.opacity > 0.95
-    qapp.sendEvent(bar, QtCore.QEvent(QtCore.QEvent.Type.Leave))               # le pointeur part : elle s'efface
-    assert wait_until(qapp, lambda: bar.opacity < 0.05, 2)
-    qapp.sendEvent(bar.lbl_title, QtCore.QEvent(QtCore.QEvent.Type.Enter))
-    assert wait_until(qapp, lambda: bar.opacity > 0.95, 2)
-    bar.set_auto_hide(False)                                    # option désactivée : jamais masquée
-    pump(qapp, 150)
-    assert bar.opacity == 1.0
-    bar.deleteLater()
+# ----------------------------------------------------------------- OSD : messages superposés à la vidéo (plus de barre d'état)
+def test_window_has_no_status_bar_and_flash_goes_to_the_osd(window, qapp):
+    assert not window.findChildren(QtWidgets.QStatusBar)          # la barre d'état n'existe plus
+    window.flash("Reprise à 03:13", 2000)
+    assert window.osd.currentMessage() == "Reprise à 03:13" and window.osd.message.isVisible()
+    assert window.osd.message.parent() is window.player_widget     # superposé à l'image
 
 
-def test_statusbar_autohide_setting_is_saved_and_restored(window, qapp):
-    assert window.menubar_widget.act_statusbar_autohide.isChecked()           # activé par défaut
-    window.menubar_widget.act_statusbar_autohide.setChecked(False)
-    assert window.settings.get("statusbar_autohide") is False and window.statusbar_widget.opacity == 1.0
+def test_osd_message_fades_away_and_info_stays_until_cleared(qapp, monkeypatch):
+    from PySide6 import QtWidgets as W
+    from pyplayer.ui.widget import osd as osd_module
+    monkeypatch.setattr(osd_module, "FADE_MS", 10)
+    host = W.QWidget()
+    host.resize(600, 300)
+    host.show()
+    osd = osd_module.Osd(host)
+    osd._fade.setDuration(10)
+    osd.show_message("Bonjour", 40)
+    osd.set_info("1.5×  A-B")
+    assert osd.message.isVisible() and osd.info.isVisible() and osd.info_text == "1.5×  A-B"
+    assert wait_until(qapp, lambda: not osd.message.isVisible(), 2)       # le message s'efface seul
+    assert osd.currentMessage() == "" and osd.info.isVisible()            # les indicateurs restent
+    osd.set_info("")
+    assert not osd.info.isVisible()
+    osd.show_message("Permanent", 0)                                       # 0 : reste affiché
+    pump(qapp, 150)
+    assert osd.message.isVisible()
+    osd.clear()
+    assert not osd.message.isVisible()
+    host.deleteLater()
+
+
+def test_osd_stays_inside_the_host_and_never_steals_the_mouse(qapp):
+    from PySide6 import QtWidgets as W
+    from pyplayer.ui.widget.osd import Osd, MARGIN
+    host = W.QWidget()
+    host.resize(500, 260)
+    host.show()
+    osd = Osd(host)
+    osd.show_message("x" * 400, 0)                                         # très long : borné à la largeur
+    osd.set_info("2×")
+    assert osd.message.x() == MARGIN and osd.message.y() == MARGIN
+    assert osd.message.width() <= host.width() - 2 * MARGIN
+    assert osd.info.x() + osd.info.width() <= host.width()
+    assert osd.message.testAttribute(QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+    host.resize(300, 260)
+    pump(qapp, 30)
+    assert osd.info.x() + osd.info.width() <= host.width()                 # suit le redimensionnement
+    host.deleteLater()

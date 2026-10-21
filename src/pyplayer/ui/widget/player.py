@@ -2,6 +2,7 @@ from PySide6 import QtCore, QtGui, QtMultimedia, QtMultimediaWidgets, QtWidgets
 
 from pyplayer.api import paths
 from pyplayer.ui import theme
+from pyplayer.ui.widget.osd import Osd
 from pyplayer.ui.widget.thumbnails import ThumbnailBubble, ThumbnailProvider
 
 SEEK_STEP_MS = 10_000
@@ -243,6 +244,7 @@ class PlayerWidget(QtWidgets.QWidget):
         stage_layout.addWidget(self.subtitle_holder)
         stage_layout.setCurrentWidget(self.subtitle_holder)
 
+        self.osd = Osd(self)                       # messages superposés à l'image ou au logo (remplace la barre d'état)
         self.main_layout.addWidget(self.placeholder_label)
         self.main_layout.addWidget(self.stage)
         self.main_layout.addWidget(self.slider)

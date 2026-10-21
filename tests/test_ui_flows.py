@@ -169,7 +169,7 @@ def test_confirm_dialog_returns_the_clicked_answer(window, monkeypatch):
 def test_open_url_goto_time_and_missing_file_dialogs(window, qapp, monkeypatch, media_dir):
     monkeypatch.setattr(QtWidgets.QInputDialog, "getText", lambda *a, **k: ("http://127.0.0.1:9/video.mp4", True))
     window.open_url_dialog()
-    assert "127.0.0.1" in window.statusbar_widget.lbl_title.text() and window._loaded_video is None
+    assert "127.0.0.1" in window.title_text and window._loaded_video is None
     window.unload_media()
     monkeypatch.setattr(QtWidgets.QInputDialog, "getText", lambda *a, **k: ("", True))
     window.open_url_dialog()                                      # vide : ignoré
@@ -183,7 +183,7 @@ def test_open_url_goto_time_and_missing_file_dialogs(window, qapp, monkeypatch, 
     window.play_video(video)
     assert errors and video.name in errors[0]
     window.play_video(video, silent_if_missing=True)
-    assert "introuvable" in window.statusBar().currentMessage().lower()
+    assert "introuvable" in window.osd.currentMessage().lower()
     assert window.dock_widget.find_item(video).missing
 
 
@@ -201,7 +201,7 @@ def test_goto_time_accepts_seconds_minutes_hours_and_rejects_garbage(window, qap
     for bad in ("abc", "-5", "1:2:3:4", ""):
         monkeypatch.setattr(QtWidgets.QInputDialog, "getText", lambda *a, bad=bad, **k: (bad, True))
         window.goto_time_dialog()
-        assert "invalide" in window.statusBar().currentMessage()
+        assert "invalide" in window.osd.currentMessage()
     assert abs(window.player.position() - before) < 1500
 
 
@@ -217,7 +217,7 @@ def test_audio_track_switch_is_refused_instead_of_freezing_when_no_audio_device(
     calls = []
     monkeypatch.setattr(window.player, "setActiveAudioTrack", lambda i: calls.append(i))
     window.next_audio_track()
-    assert calls == [] and "Aucun périphérique audio" in window.statusBar().currentMessage()
+    assert calls == [] and "Aucun périphérique audio" in window.osd.currentMessage()
     window.fill_audio_menu()
     window.menubar_widget.audioTrackMenu.actions()[3].trigger()
     assert calls == []                                            # ni par le raccourci ni par le menu
@@ -270,17 +270,17 @@ def test_embedded_subtitles_menu_cycle_and_external_override(window, qapp, multi
     empty = tmp_path / "empty.srt"
     empty.write_text("rien", encoding="utf-8")
     window._set_external_subtitles(empty)
-    assert "valide" in window.statusBar().currentMessage()
+    assert "valide" in window.osd.currentMessage()
     monkey = QtWidgets.QFileDialog
     window.shift_subtitles(100)
-    assert "Le décalage" in window.statusBar().currentMessage() or window._subtitles is None
+    assert "Le décalage" in window.osd.currentMessage() or window._subtitles is None
 
 
 def test_load_subtitle_dialog_and_no_subtitle_messages(window, monkeypatch, tmp_path):
     window.next_subtitle()
-    assert "Aucun sous-titre" in window.statusBar().currentMessage()
+    assert "Aucun sous-titre" in window.osd.currentMessage()
     window.next_audio_track()
-    assert "Une seule piste" in window.statusBar().currentMessage()
+    assert "Une seule piste" in window.osd.currentMessage()
     srt = tmp_path / "x.srt"
     srt.write_text("1\n00:00:00,000 --> 00:00:02,000\nA\n", encoding="utf-8")
     monkeypatch.setattr(QtWidgets.QFileDialog, "getOpenFileName", lambda *a, **k: (str(srt), ""))
@@ -304,7 +304,7 @@ def test_info_reveal_logs_about_help_and_screenshot_without_media(window, monkey
     monkeypatch.setattr(mw.AboutDialog, "exec", lambda self: shown.append("about") or 0)
     monkeypatch.setattr(mw.HelpDialog, "exec", lambda self: shown.append("help") or 0)
     window.show_media_info()
-    assert "sélectionné" in window.statusBar().currentMessage()
+    assert "sélectionné" in window.osd.currentMessage()
     window.open_paths([str(media_dir("lib", 2))], enqueue=True)
     window.dock_widget.get_video_items()[1].setSelected(True)
     window.show_media_info()
@@ -318,7 +318,7 @@ def test_info_reveal_logs_about_help_and_screenshot_without_media(window, monkey
     else:                                                     # Linux : on ouvre le dossier qui le contient
         assert Path(opened[0]) == window.active_playlist[1].parent
     window.take_screenshot()
-    assert "Aucune image" in window.statusBar().currentMessage()
+    assert "Aucune image" in window.osd.currentMessage()
 
 
 def test_settings_are_restored_by_a_new_window(qapp, isolated_home, monkeypatch):
@@ -375,7 +375,7 @@ def test_set_speed_and_aspect_helpers(window):
     window.set_speed(1.3)                                         # vitesse hors liste : le cran le plus proche est utilisé
     window.step_speed(+1)
     assert window._rate == 1.5
-    assert window.statusbar_widget.lbl_info.text() == "1.5×"
+    assert window.osd.info_text == "1.5×"
 
 
 def test_closing_the_window_persists_resume_and_playlists(qapp, isolated_home, tmp_path):
@@ -452,7 +452,7 @@ def test_browsing_another_playlist_does_not_hijack_what_plays_next(window, qapp,
     assert b.current is None or b.current not in a.videos
     window.previous_video()
     assert window._loaded_video in a.videos
-    assert "0 ➤" not in window.statusbar_widget.lbl_title.text()      # l'indice vient de la playlist qui joue
+    assert "0 ➤" not in window.title_text      # l'indice vient de la playlist qui joue
     window.stop_playing()
 
 

@@ -316,8 +316,6 @@ class MenuBarWidget(QtWidgets.QMenuBar):
         self.act_full_screen_mode.setShortcuts([QtGui.QKeySequence("F11"), QtGui.QKeySequence("F")])
         self.act_always_on_top = self._action(menu, "keep", "Toujours au premier plan", "Ctrl+T")
         self.act_always_on_top.setCheckable(True)
-        self.act_statusbar_autohide = self._action(menu, "infos", "Masquer la barre d'état après 4 s")
-        self.act_statusbar_autohide.setCheckable(True)
         self.act_thumbnails = self._action(menu, "infos", "Miniatures sur la barre de progression")
         self.act_thumbnails.setCheckable(True)
 

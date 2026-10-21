@@ -19,7 +19,6 @@ DEFAULTS: dict[str, Any] = {
     "aspect_mode": "fit",          # fit | stretch | fill
     "always_on_top": False,
     "thumbnails": True,            # miniatures au survol de la barre de progression
-    "statusbar_autohide": True,    # la barre d'état s'efface après 4 s de lecture, revient au survol
     "audio_device": "",            # id (base64) du périphérique de sortie, vide = défaut système
     "recent_files": [],            # list[str]
     "last_open_dir": "",

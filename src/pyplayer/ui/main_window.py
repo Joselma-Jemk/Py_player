@@ -23,7 +23,6 @@ from pyplayer.ui.power import SleepInhibitor
 from pyplayer.ui.widget.dock_widget import DeletePlaylistDialog, DockWidget, VideoListItem
 from pyplayer.ui.widget.menu_bar import HelpDialog, MenuBarWidget
 from pyplayer.ui.widget.player import PlayerWidget
-from pyplayer.ui.widget.staturbar_widget import StatusBar
 from pyplayer.ui.widget.tool_bar import ToolBarWidget
 
 logger = logging.getLogger(__name__)
@@ -123,6 +122,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.resume = self.manager.resume
         self.inhibitor = SleepInhibitor()
         self._skip_save_on_close = False
+        self.title_text = "Pas de média en cours"          # titre du média courant (affiché un instant dans l'OSD)
         self._playing_playlist_id: str | None = None      # playlist du média en cours (cf. playback_playlist)
 
         self.session = PlaybackSession()           # état de lecture explicite (api/playback.py)
@@ -162,9 +162,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.dock_widget)
         self.dock_widget.setObjectName("playlist_dock")
         self.toolbar_widget.setObjectName("main_toolbar")
-        self.statusbar_widget = StatusBar(self)
-        self.setStatusBar(self.statusbar_widget)
-
         self.audio_output = self.player_widget.audio_output
         self.player = self.player_widget.video_player
 
@@ -242,7 +239,6 @@ class MainWindow(QtWidgets.QMainWindow):
         m.act_screenshot.triggered.connect(self.take_screenshot)
         m.act_full_screen_mode.triggered.connect(self.toggle_fullscreen)
         m.act_always_on_top.toggled.connect(self.set_always_on_top)
-        m.act_statusbar_autohide.toggled.connect(self.set_statusbar_autohide)
         m.act_thumbnails.toggled.connect(self.set_thumbnails)
 
         # Menu Playlist
@@ -351,9 +347,6 @@ class MainWindow(QtWidgets.QMainWindow):
         thumbs = bool(s.get("thumbnails"))
         self.menubar_widget.act_thumbnails.setChecked(thumbs)
         self.player_widget.set_thumbnails_enabled(thumbs)
-        autohide = bool(s.get("statusbar_autohide"))
-        self.menubar_widget.act_statusbar_autohide.setChecked(autohide)
-        self.statusbar_widget.set_auto_hide(autohide)
 
         volume = self.manager.volume
         self.audio_output.setVolume(volume)          # valeur explicite : plus de dépendance au signal du slider
@@ -378,9 +371,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.player_widget.bubble.hide()
         super().closeEvent(event)
 
+    @property
+    def osd(self):
+        return self.player_widget.osd
+
     def flash(self, message: str, timeout_ms: int = 4000):
-        """Message temporaire dans la barre d'état."""
-        self.statusBar().showMessage(message, timeout_ms)
+        """Message temporaire superposé à la vidéo (en haut à gauche)."""
+        self.osd.show_message(message, timeout_ms)
 
     # ===================================================================
     # PLAYLISTS (panneau de droite)
@@ -551,7 +548,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.session.begin_load(None)
         self.player.setSource(url)
         self.player.play()
-        self.statusbar_widget.set_title(f"     🌐  {url.toString()}")
+        self.title_text = f"🌐  {url.toString()}"
+        self.flash(self.title_text, 3500)
         self.setWindowTitle(f"{url.fileName() or url.host()} — {APP_NAME}")
 
     def open_paths(self, raw_paths, *, enqueue: bool = False):
@@ -899,7 +897,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.toolbar_widget.player_controls.btn_stop.setEnabled(not stopped)
         self.menubar_widget.act_stop.setEnabled(not stopped)
         self.inhibitor.set_active(playing and self.player.hasVideo())
-        self.statusbar_widget.set_playing(playing)
         if stopped:
             self._update_titles()
 
@@ -943,14 +940,17 @@ class MainWindow(QtWidgets.QMainWindow):
     def _update_titles(self):
         video = self._loaded_video
         if video is None or self.player.mediaStatus() == MediaStatus.NoMedia:
-            self.statusbar_widget.set_title("   Pas de média en cours")
+            self.title_text = "Pas de média en cours"
             self.setWindowTitle(APP_NAME)
             return
         item = self.dock_widget.find_item(video)
         index = item.index if item else self.playback_playlist.index_of(video) + 1
         resolution = video.resolution
         extra = f" ▌ Résolution : {resolution}" if resolution else ""
-        self.statusbar_widget.set_title(f"     {index} ➤  {video.name}{extra}")
+        title = f"{index} ➤  {video.name}{extra}"
+        if title != self.title_text:
+            self.title_text = title
+            self.flash(title, 3500)                  # le titre apparaît un instant à chaque nouveau média
         self.setWindowTitle(f"{video.name} — {APP_NAME}")
         self._update_status_info()
 
@@ -1073,7 +1073,7 @@ class MainWindow(QtWidgets.QMainWindow):
             parts.append("A-B" if self._ab_b is not None else "A…")
         if self.player.loops() == QtMultimedia.QMediaPlayer.Loops.Infinite:
             parts.append("🔁")
-        self.statusbar_widget.set_info("  ".join(parts))
+        self.osd.set_info("  ".join(parts))
         self.player_widget.slider.set_loop(self._ab_a, self._ab_b)
 
     # ===================================================================
@@ -1252,10 +1252,6 @@ class MainWindow(QtWidgets.QMainWindow):
         if enabled and video is not None and self.player.hasVideo() and video.path.is_file():
             self.player_widget.set_thumbnail_source(str(video.path), self.player.duration())
 
-    def set_statusbar_autohide(self, enabled: bool):
-        self.settings.set("statusbar_autohide", bool(enabled))
-        self.statusbar_widget.set_auto_hide(bool(enabled))
-
     def set_always_on_top(self, enabled: bool):
         self.settings.set("always_on_top", bool(enabled))
         was_visible = self.isVisible()
@@ -1277,7 +1273,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._was_maximized = self.isMaximized()
         self._dock_visible_before_fullscreen = self.dock_widget.isVisible()
         self.showFullScreen()
-        for widget in (self.menubar_widget, self.toolbar_widget, self.dock_widget, self.statusbar_widget):
+        for widget in (self.menubar_widget, self.toolbar_widget, self.dock_widget):
             widget.setVisible(False)
         self.setCursor(QtCore.Qt.CursorShape.BlankCursor)
         self.menubar_widget.toggle_full_screen_display(True)
@@ -1289,7 +1285,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showMaximized() if self._was_maximized else self.showNormal()
         self.menubar_widget.setVisible(True)
         self.toolbar_widget.setVisible(True)
-        self.statusbar_widget.setVisible(True)
         self.dock_widget.setVisible(self._dock_visible_before_fullscreen)   # respecte le choix de l'utilisateur
         self.unsetCursor()
         self.menubar_widget.toggle_full_screen_display(False)
