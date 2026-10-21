@@ -231,3 +231,43 @@ def test_an_empty_playlist_is_still_a_playlist(tmp_path):
     assert manager.rename(empty.id, "Renommée") and empty.name == "Renommée"
     assert manager.get(empty.id) is empty
     assert manager.set_active(empty.id) and manager.active is empty
+
+
+# ----------------------------------------------------------------- import M3U : pas de doublons
+def _m3u(folder, names, title="Ma liste"):
+    for name in names:
+        (folder / name).write_bytes(b"x")
+    playlist = folder / f"{title}.m3u"
+    playlist.write_text("#EXTM3U\n" + "\n".join(str(folder / n) for n in names) + "\n", encoding="utf-8")
+    return playlist
+
+
+def test_importing_the_same_m3u_twice_returns_the_same_playlist(isolated_home, tmp_path):
+    manager = PlaylistManager(isolated_home)
+    m3u = _m3u(tmp_path, ["a.mp3", "b.mp3"])
+    first = manager.import_playlist_file(m3u)
+    count = len(manager)
+    second = manager.import_playlist_file(m3u)
+    assert second is first and len(manager) == count and [v.name for v in first] == ["a.mp3", "b.mp3"]
+
+
+def test_a_reordered_playlist_is_still_recognised_but_a_changed_one_is_new(isolated_home, tmp_path):
+    manager = PlaylistManager(isolated_home)
+    m3u = _m3u(tmp_path, ["a.mp3", "b.mp3"])
+    first = manager.import_playlist_file(m3u)
+    first.reorder(list(reversed(first.videos)))                       # l'utilisateur a changé l'ordre
+    assert manager.import_playlist_file(m3u) is first
+    (tmp_path / "c.mp3").write_bytes(b"x")
+    m3u.write_text(f"{tmp_path / 'a.mp3'}\n{tmp_path / 'b.mp3'}\n{tmp_path / 'c.mp3'}\n", encoding="utf-8")
+    changed = manager.import_playlist_file(m3u)
+    assert changed is not first and len(changed) == 3                  # contenu différent : nouvelle playlist
+
+
+def test_the_quick_playlist_and_other_names_never_count_as_duplicates(isolated_home, tmp_path):
+    manager = PlaylistManager(isolated_home)
+    quick = manager.quick_playlist()
+    (tmp_path / "a.mp3").write_bytes(b"x")
+    quick.add(tmp_path / "a.mp3")
+    one = manager.import_playlist_file(_m3u(tmp_path, ["a.mp3"], "Quick"))
+    other = manager.import_playlist_file(_m3u(tmp_path, ["a.mp3"], "Autre nom"))
+    assert one is not quick and other is not one

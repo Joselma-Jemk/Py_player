@@ -7,6 +7,7 @@ import tarfile
 import threading
 import zipfile
 import http.server
+from pathlib import Path
 
 import pytest
 
@@ -172,15 +173,16 @@ def test_oversized_member_is_refused(tmp_path):
 def test_install_ffmpeg_end_to_end(mirror, tmp_path):
     files, base, policy = mirror
     archive = tmp_path / "ff.tar.xz"
-    make_tar(archive, {"x/bin/ffmpeg": b"FFMPEG", "x/bin/ffprobe": b"FFPROBE"})
+    suffix = ".exe" if os.name == "nt" else ""                 # le moteur cherche ffmpeg.exe sous Windows
+    make_tar(archive, {f"x/bin/ffmpeg{suffix}": b"FFMPEG", f"x/bin/ffprobe{suffix}": b"FFPROBE"})
     body = archive.read_bytes()
     name = "ffmpeg-master-latest-linux64-gpl.tar.xz"
     files[name] = body
     files["checksums.sha256"] = f"{hashlib.sha256(body).hexdigest()}  {name}\n".encode()
     folder = install_ffmpeg(policy=policy, base=base, asset=name)
-    assert (folder / "ffmpeg").read_bytes() == b"FFMPEG" and (folder / "ffprobe").read_bytes() == b"FFPROBE"
+    assert (folder / f"ffmpeg{suffix}").read_bytes() == b"FFMPEG" and (folder / f"ffprobe{suffix}").read_bytes() == b"FFPROBE"
     from pyplayer.api import downloads
-    assert downloads.ffmpeg_dir() == str(folder)                         # le moteur de téléchargement le trouve
+    assert Path(downloads.ffmpeg_dir()) == folder                        # le moteur de téléchargement le trouve
 
 
 def test_install_ffmpeg_with_wrong_checksum_installs_nothing(mirror, tmp_path):

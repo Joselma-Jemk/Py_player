@@ -51,8 +51,10 @@ def test_summary_text_counts_states_and_total_speed():
 
 # ----------------------------------------------------------------- panneau et moteur
 @pytest.fixture
-def fake_downloads(window):
-    """Remplace yt-dlp par de faux processus : on pilote la progression à la main."""
+def fake_downloads(window, monkeypatch):
+    """Remplace yt-dlp par de faux processus : on pilote la progression à la main. FFmpeg est supposé présent (les
+    runners Windows n'en ont pas : sans lui le moteur choisit des fichiers uniques)."""
+    monkeypatch.setattr(dl, "ffmpeg_dir", lambda: "/opt/ffmpeg")
     processes = []
 
     def factory(args):
@@ -523,7 +525,7 @@ def test_install_update_branches(window, qapp, monkeypatch):
     events.clear()
     monkeypatch.setattr(window, "run_task", lambda *a: (True, updater.ApplyResult("saved", Path("/tmp/new.exe"))))
     window.install_update(info)
-    assert events == [("inform", "Mise à jour téléchargée"), ("reveal", "/tmp/new.exe")]
+    assert events == [("inform", "Mise à jour téléchargée"), ("reveal", str(Path("/tmp/new.exe")))]
     events.clear()
     monkeypatch.setattr(window, "run_task", lambda *a: (False, "Somme de contrôle incorrecte"))
     window.install_update(info)

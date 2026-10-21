@@ -5,6 +5,7 @@ import http.server
 import shutil
 import subprocess
 import threading
+from pathlib import Path
 
 import pytest
 from hypothesis import given, strategies as st
@@ -119,7 +120,7 @@ def test_resolve_with_injected_extractor_and_without_any_backend(monkeypatch):
 def test_binary_path_preference_user_binary_then_path(monkeypatch, tmp_path):
     monkeypatch.setenv("PYPLAYER_HOME", str(tmp_path / "home"))
     monkeypatch.setattr(online.shutil, "which", lambda name: "/usr/bin/yt-dlp")
-    assert str(online.find_binary()) == "/usr/bin/yt-dlp"
+    assert online.find_binary() == Path("/usr/bin/yt-dlp")
     own = online.user_binary_path()
     own.parent.mkdir(parents=True)
     own.write_bytes(b"#!/bin/sh\n")

@@ -91,7 +91,7 @@ def test_without_ffmpeg_the_engine_picks_single_files_and_drops_what_needs_ffmpe
 def test_ffmpeg_dir_prefers_the_one_installed_by_pyplayer(monkeypatch, tmp_path):
     monkeypatch.setenv("PYPLAYER_HOME", str(tmp_path / "home"))
     monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/ffmpeg" if name == "ffmpeg" else None)
-    assert d.ffmpeg_dir() == "/usr/bin"
+    assert Path(d.ffmpeg_dir()) == Path("/usr/bin")
     own = d.tools_dir() / "ffmpeg" / ("ffmpeg.exe" if __import__("os").name == "nt" else "ffmpeg")
     own.parent.mkdir(parents=True)
     own.write_bytes(b"x")
@@ -255,7 +255,7 @@ def make_manager(tmp_path, factory, **kwargs):
 
 def test_successful_download_updates_the_item_and_emits_events(tmp_path):
     lines = ['PYPINFO:{"title": "Mon film"}', progress(10, 100), progress(100, 100, "finished"),
-             'PYPDONE:"' + str(tmp_path / "out" / "Mon film.mp4") + '"']
+             "PYPDONE:" + json.dumps(str(tmp_path / "out" / "Mon film.mp4"))]      # JSON correct (antislashs Windows)
     manager, events = make_manager(tmp_path, lambda args: FakeProcess(lines))
     item = manager.add(URL, out_dir=tmp_path / "out")
     assert until(lambda: manager.get(item.id).state == State.DONE)
@@ -606,7 +606,7 @@ def test_real_missing_url_ends_in_a_readable_error(tmp_path, range_server):
 
 def test_ytdlp_command_prefers_binary_then_module(monkeypatch, tmp_path):
     monkeypatch.setattr(online, "find_binary", lambda: Path("/opt/yt-dlp"))
-    assert d.ytdlp_command() == ["/opt/yt-dlp"]
+    assert d.ytdlp_command() == [str(Path("/opt/yt-dlp"))]
     monkeypatch.setattr(online, "find_binary", lambda: None)
     monkeypatch.setattr(online, "module_available", lambda: True)
     monkeypatch.setattr(d, "is_frozen", lambda: False)

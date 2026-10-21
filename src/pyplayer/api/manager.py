@@ -162,9 +162,18 @@ class PlaylistManager:
 
     # ------------------------------------------------------------------ M3U
     def import_playlist_file(self, file_path: Path | str) -> Playlist:
-        """Importe un fichier .m3u/.m3u8/.pls comme nouvelle playlist."""
+        """Importe un fichier .m3u/.m3u8/.pls comme nouvelle playlist.
+
+        Rouvrir le même fichier ne crée pas de doublon : si une playlist du même nom contient exactement les mêmes
+        médias (quel que soit l'ordre, que l'utilisateur a pu changer), c'est elle qui est retournée."""
         name, media = read_playlist_file(file_path)
-        playlist = self.create_playlist(name or "Playlist importée")
+        name = name or "Playlist importée"
+        wanted = sorted(path_key(path) for path in media)
+        for existing in self._playlists.values():
+            if (existing.kind != "quick" and existing.name == name
+                    and sorted(video.key for video in existing.videos) == wanted):
+                return existing
+        playlist = self.create_playlist(name)
         playlist.add_many(media)
         self._write(playlist)
         return playlist
