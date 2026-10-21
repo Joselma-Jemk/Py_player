@@ -42,6 +42,51 @@ pyplayer [options] [fichiers | dossiers | playlists .m3u/.m3u8/.pls | URL …]
   -v, --version
 ```
 
+### Ligne de commande : télécharger, outils, mises à jour
+
+La commande `pyplayer` sait aussi télécharger (yt-dlp) sans ouvrir de fenêtre ; elle démarre instantanément (Qt n'est
+même pas chargé). Elle partage les réglages de l'application (dossier, qualité, options avancées).
+
+```bash
+pyplayer download https://youtu.be/XXXX                     # une vidéo (alias : dl)
+pyplayer dl -q 720p -o ~/Videos "lien1" "lien2" -j 4         # plusieurs liens, 4 en parallèle
+pyplayer dl -a https://soundcloud.com/artiste/titre          # audio seulement (mp3 ; -a m4a, -a opus)
+pyplayer dl -p --items 1-5,8 "https://youtube.com/playlist?list=PL…"    # une partie d'une playlist
+pyplayer dl -f liens.txt                                     # tous les liens d'un fichier (chasse automatique)
+echo "copié : https://vimeo.com/123" | pyplayer dl -         # ou depuis l'entrée standard
+pyplayer dl --subs fr,en --sponsorblock remove --rate-limit 2M "lien"
+pyplayer dl --json "lien"                                    # une ligne JSON par événement (scripts)
+pyplayer dl --resume                                         # reprend ce que Ctrl+C a interrompu
+pyplayer dl --play "lien"                                    # ouvre PyPlayer sur le fichier téléchargé
+
+pyplayer tools status | install [ytdlp|ffmpeg|all]          # yt-dlp / FFmpeg : installation vérifiée (SHA-256)
+pyplayer update [--install]                                  # cherche / installe une nouvelle version
+pyplayer self-install                                        # Linux/macOS : place « pyplayer » dans ~/.local/bin
+```
+
+Codes de sortie : `0` tout va bien · `1` au moins un échec · `2` usage invalide · `3` yt-dlp absent · `130` interrompu.
+Un dossier qui s'appellerait `download` ou `tools` s'ouvre avec `pyplayer ./download` (la commande l'emporte).
+
+**Windows** : l'installateur propose d'ajouter `pyplayer` au `PATH` (case cochée par défaut, retirée proprement à la
+désinstallation) ; ouvrez un nouveau terminal, puis `pyplayer download <lien>`.
+
+### Téléchargements, mises à jour, outils
+
+* **Onglet « Téléchargements »** du panneau de droite (`Ctrl+Maj+D`) : file d'attente, vitesse, reste à faire, pause /
+  reprise / annulation, **reprise automatique** à la réouverture, playlists dépliées vidéo par vidéo, options avancées
+  (qualité, sous-titres, SponsorBlock, limite de débit, cookies du navigateur, extrait, modèle de nom…).
+* **Chasse aux liens** : un lien de vidéo copié (navigateur, message) est proposé en une bulle discrète
+  (Télécharger / Lire / Ignorer) ; désactivable (Fichier → « Détecter les liens copiés »).
+* **Lecture intelligente** : une page web (YouTube…) se lit directement ; pendant son téléchargement on regarde le flux,
+  et dès que le fichier est complet la lecture **bascule sur la copie locale à la même position**. Les téléchargements
+  terminés sont ajoutés à la playlist « Téléchargements ».
+* **yt-dlp et FFmpeg** s'installent en un clic (Support → « Installer / mettre à jour yt-dlp », « Installer FFmpeg ») :
+  versions officielles de GitHub, **somme SHA-256 vérifiée**, rangées dans les données de PyPlayer (rien dans le système).
+  Sans FFmpeg, PyPlayer reste utilisable (fichier unique, qualité limitée) et le dit.
+* **Mises à jour automatiques** : vérification discrète une fois par jour (désactivable), contrôle SHA-256 du fichier
+  publié dans la release ; installateur Windows silencieux, remplacement atomique sous Linux.
+* **Réinitialisation** (Support → « Réinitialiser PyPlayer… ») : supprime les données au choix (jamais vos médias).
+
 ### « Ouvrir avec… » et instance unique
 
 * Un fichier ouvert depuis l'explorateur (ou `pyplayer film.mkv`) est lu immédiatement ; si PyPlayer est déjà

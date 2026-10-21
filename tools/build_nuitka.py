@@ -61,7 +61,9 @@ def main() -> int:
         "--file-description=Lecteur vidéo et audio",
     ]
     if system == "windows":
-        command += ["--windows-console-mode=disable",
+        # « attach » : pas de fenêtre de console à l'ouverture normale, mais la sortie s'affiche dans le terminal d'où
+        # on lance « pyplayer download … » (voir packaging/pyplayer.cmd).
+        command += ["--windows-console-mode=attach",
                     f"--windows-icon-from-ico={SRC / 'pyplayer' / 'resources' / 'icons' / 'pyplayer_1.png'}"]
     elif system == "macos":
         command += ["--macos-create-app-bundle"]

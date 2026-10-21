@@ -78,6 +78,15 @@ jobs:
           binary=$(ls dist/pyplayer-*)
           echo "binaire : $binary"
           "./$binary" --version
+          # La ligne de commande doit fonctionner dans le binaire compilé (et afficher sa sortie).
+          status_output=$("./$binary" tools status 2>&1) || true
+          echo "$status_output"
+          echo "$status_output" | grep -q "yt-dlp" || { echo "::error title=CLI::« tools status » n'affiche rien"; exit 1; }
+          help_output=$("./$binary" download --help 2>&1) || true
+          echo "$help_output" | head -5
+          echo "$help_output" | grep -q -- "--playlist" || { echo "::error title=CLI::« download --help » n'affiche rien"; exit 1; }
+          "./$binary" download > /dev/null 2>&1; code=$?
+          test "$code" = "2" || { echo "::error title=CLI::code de sortie attendu 2 sans lien, obtenu $code"; exit 1; }
       - name: Installateur Windows (Inno Setup)
         if: matrix.label == 'windows'
         shell: pwsh
@@ -102,10 +111,22 @@ jobs:
           if (-not (Test-Path "HKCU:\Software\Classes\.mp4\OpenWithProgids")) { Write-Host "::error title=Installation::.mp4 non déclaré"; exit 1 }
           $r = Start-Process -FilePath "$dir\PyPlayer.exe" -ArgumentList "--version" -Wait -PassThru
           if ($r.ExitCode -ne 0) { Write-Host "::error title=Binaire installé::code $($r.ExitCode)"; exit 1 }
+          # Ligne de commande : le dossier « bin » est dans le PATH utilisateur et le script est là
+          if (-not (Test-Path "$dir\bin\pyplayer.cmd")) { Write-Host "::error title=PATH::pyplayer.cmd absent"; exit 1 }
+          $userPath = (Get-ItemProperty "HKCU:\Environment").Path
+          if (($userPath -split ';') -notcontains "$dir\bin") { Write-Host "::error title=PATH::le dossier bin n'est pas dans le PATH ($userPath)"; exit 1 }
+          # Le programme installé répond bien aux commandes du terminal (sortie redirigée vers un fichier)
+          $outFile = Join-Path $env:RUNNER_TEMP "cli-out.txt"
+          $c = Start-Process -FilePath "$dir\PyPlayer.exe" -ArgumentList "tools","status" -Wait -PassThru -RedirectStandardOutput $outFile
+          $cliText = Get-Content $outFile -Raw
+          Write-Host $cliText
+          if ($cliText -notmatch "yt-dlp") { Write-Host "::error title=Ligne de commande::pas de sortie pour « tools status »"; exit 1 }
           $u = Start-Process -FilePath "$dir\unins000.exe" -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait -PassThru
           Start-Sleep -Seconds 3
           if (Test-Path "$dir\PyPlayer.exe") { Write-Host "::error title=Désinstallation::PyPlayer.exe toujours présent"; exit 1 }
           if (Test-Path "HKCU:\Software\Classes\PyPlayer.media") { Write-Host "::error title=Désinstallation::clé de registre restante"; exit 1 }
+          $afterPath = (Get-ItemProperty "HKCU:\Environment").Path
+          if (($afterPath -split ';') -contains "$dir\bin") { Write-Host "::error title=Désinstallation::le PATH contient encore le dossier bin"; exit 1 }
           Write-Host "installation, lancement et désinstallation OK"
       - name: Somme de contrôle
         shell: bash

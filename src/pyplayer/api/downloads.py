@@ -467,7 +467,8 @@ class DownloadManager:
     def __init__(self, state_file: Path | str | None = None, *, max_parallel: int = 2,
                  command_provider: Callable[[], list[str] | None] | None = None,
                  process_factory: ProcessFactory | None = None, retry_base_s: float = RETRY_BASE_S,
-                 playlist_expander: Callable[[str, DownloadOptions], tuple[str, list[PlaylistEntry]]] | None = None) -> None:
+                 playlist_expander: Callable[[str, DownloadOptions], tuple[str, list[PlaylistEntry]]] | None = None,
+                 restore: bool = True) -> None:
         self.state_file = Path(state_file) if state_file else None
         self.max_parallel = max(1, int(max_parallel))
         self._command_provider = command_provider or ytdlp_command
@@ -484,7 +485,8 @@ class DownloadManager:
         self._closed = False
         self._dirty = False
         self._last_save = 0.0
-        self.load()
+        if restore:                                  # la ligne de commande peut repartir d'une file vide
+            self.load()
 
     def command_available(self) -> bool:
         """Vrai si yt-dlp peut être lancé (sinon l'interface propose de l'installer)."""

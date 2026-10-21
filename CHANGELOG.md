@@ -26,6 +26,18 @@ performances sont reprises en profondeur, et de nouvelles fonctions de lecteur �
 * **Reprise** : un second signal « média chargé » ne laisse plus la reprise et l'enregistrement actifs ensemble.
 * **Migration** depuis l'ancien format (dates ISO, positions, dernière playlist, volume), avec instantané du v1.
 
+### Ajouté (téléchargements, ligne de commande, mises à jour)
+* **Ligne de commande** `pyplayer download | tools | update | self-install` (sans Qt, démarrage instantané), codes de
+  sortie précis, sortie JSON, reprise après Ctrl+C ; l'installateur Windows ajoute `pyplayer` au PATH.
+* **Onglet « Téléchargements »** (yt-dlp) : file, parallélisme, pause/reprise, reprise automatique, playlists dépliées,
+  options avancées, chasse aux liens (presse-papiers), lecture « intelligente » avec bascule sur le fichier local.
+* **Lecture en ligne** via yt-dlp (page web → flux), adresses acceptées en ligne de commande et par glisser-déposer.
+* **Installation de yt-dlp et FFmpeg** en un clic (versions officielles, SHA-256 vérifié) ; **mises à jour
+  automatiques** de l'application (release GitHub, SHA-256, installateur silencieux).
+* **Informations détaillées** sur le média (fichier, conteneur, pistes, chapitres, métadonnées, pochette, SHA-256),
+  **miniatures** au survol de la barre de progression, **OSD** à la place de la barre d'état, boutons de lecture en gras,
+  **réinitialisation** des données, la navigation suit la playlist qui joue (et non celle qui est affichée).
+
 ### Ajouté
 * Ligne de commande, « Ouvrir avec… », instance unique, glisser-déposer, ouverture d'URL, fichiers récents.
 * Vitesse 0,25×–4×, boucle A-B, « aller à l'instant », pistes audio, sous-titres intégrés et externes (.srt/.vtt) avec

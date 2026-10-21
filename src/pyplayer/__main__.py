@@ -44,6 +44,9 @@ def main(argv: list[str] | None = None) -> int:
     arguments = argv if argv is not None else sys.argv[1:]
     if arguments and arguments[0] == "--ytdlp-run":
         return run_ytdlp(arguments[1:])
+    from pyplayer import cli
+    if cli.is_cli(arguments):                       # « pyplayer download … » : sans Qt, démarrage instantané
+        return cli.main(arguments)
     args = build_parser().parse_args(arguments)
     os.environ.setdefault("QT_MEDIA_BACKEND", "ffmpeg")
 
