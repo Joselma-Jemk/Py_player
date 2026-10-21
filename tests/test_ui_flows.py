@@ -486,3 +486,91 @@ def test_media_info_collects_file_ffprobe_and_qt_metadata_for_the_loaded_video(w
     assert rows["Résolution"] == "320×180" and rows["Nom"] == "info.mp4"
     assert any("Titre de test" in value for value in rows.values())          # métadonnée lue, sans doublon
     window.stop_playing()
+
+
+# ----------------------------------------------------------------- lecture en ligne (yt-dlp)
+def _fake_media(stream="http://127.0.0.1:9/flux.mp4", title="Vidéo en ligne", duration_ms=125_000):
+    from pyplayer.api.online import OnlineMedia
+    return OnlineMedia(page_url="https://site.exemple/watch?v=1", stream_url=stream, title=title, duration_ms=duration_ms)
+
+
+def test_open_url_of_a_web_page_resolves_in_background_then_plays_the_stream(window, qapp, monkeypatch):
+    from pyplayer.api import online
+    calls = []
+    monkeypatch.setattr(online, "resolve", lambda page: calls.append(page) or _fake_media())
+    window.open_url("https://site.exemple/watch?v=1")
+    assert "Recherche" in window.osd.currentMessage()
+    assert wait_until(qapp, lambda: window.player.source().toString() == "http://127.0.0.1:9/flux.mp4", 5)
+    assert calls == ["https://site.exemple/watch?v=1"]
+    assert "Vidéo en ligne" in window.title_text and "2:05" in window.title_text
+    assert "Vidéo en ligne" in window.windowTitle() and window._loaded_video is None
+
+
+def test_open_url_of_a_direct_stream_skips_yt_dlp(window, qapp, monkeypatch):
+    from pyplayer.api import online
+    monkeypatch.setattr(online, "resolve", lambda page: pytest.fail("yt-dlp ne doit pas être appelé"))
+    window.open_url("http://127.0.0.1:9/direct.mp4")
+    assert window.player.source().toString() == "http://127.0.0.1:9/direct.mp4"
+    window.open_url(QtCore.QUrl("rtsp://127.0.0.1:9/cam"))
+    assert window.player.source().scheme() == "rtsp"
+
+
+def test_a_stale_resolution_never_replaces_what_the_user_opened_since(window, qapp, monkeypatch):
+    import threading
+    from pyplayer.api import online
+    gate = threading.Event()
+
+    def slow(page):
+        gate.wait(5)
+        return _fake_media(stream="http://127.0.0.1:9/ancien.mp4", title="Ancien")
+    monkeypatch.setattr(online, "resolve", slow)
+    window.open_url("https://site.exemple/lent")                 # résolution lente en cours…
+    window.open_url("http://127.0.0.1:9/nouveau.mp4")            # …l'utilisateur ouvre autre chose
+    gate.set()
+    QtCore.QThreadPool.globalInstance().waitForDone(5000)
+    pump(qapp, 300)
+    assert window.player.source().toString() == "http://127.0.0.1:9/nouveau.mp4"
+    assert "Ancien" not in window.title_text
+
+
+def test_failed_resolution_is_reported_and_leaves_playback_alone(window, qapp, monkeypatch):
+    from pyplayer.api import online
+
+    def fail(page):
+        raise online.OnlineError("Video unavailable")
+    monkeypatch.setattr(online, "resolve", fail)
+    window.open_url("https://site.exemple/prive")
+    assert wait_until(qapp, lambda: "Video unavailable" in window.osd.currentMessage(), 5)
+    assert window.player.source().isEmpty()
+
+
+def test_streaming_clears_the_previous_media_subtitles_loop_and_thumbnails(window, qapp, monkeypatch, tmp_path):
+    from pyplayer.api.subtitles import SubtitleTrack
+    window._subtitles = SubtitleTrack([])
+    window.session.cycle_ab(1000)
+    window.player_widget.thumbnails._source = "/tmp/ancien.mp4"
+    window.open_url("http://127.0.0.1:9/flux.mp4")
+    assert window._subtitles is None and window._ab_a is None
+    assert not window.player_widget.thumbnails.has_source
+
+
+def test_command_line_urls_open_online_and_never_as_paths(window, qapp, monkeypatch):
+    opened = []
+    monkeypatch.setattr(window, "open_url", lambda url: opened.append(url))
+    window.open_paths(["https://site.exemple/watch?v=1"], enqueue=False)
+    window.open_paths(["https://site.exemple/x"], enqueue=True)
+    assert opened == ["https://site.exemple/watch?v=1", "https://site.exemple/x"]
+    assert "ne s'ajoutent pas" in window.osd.currentMessage()
+    assert len(window.active_playlist) == 0                      # aucune playlist polluée par une adresse
+
+
+def test_dropping_a_web_link_opens_it_online(window, qapp, monkeypatch):
+    from PySide6 import QtGui
+    opened = []
+    monkeypatch.setattr(window, "open_url", lambda url: opened.append(url))
+    mime = QtCore.QMimeData()
+    mime.setText("https://site.exemple/watch?v=9\n")
+    event = QtGui.QDropEvent(QtCore.QPointF(5, 5), QtCore.Qt.DropAction.CopyAction, mime,
+                             QtCore.Qt.MouseButton.LeftButton, QtCore.Qt.KeyboardModifier.NoModifier)
+    window.dropEvent(event)
+    assert opened == ["https://site.exemple/watch?v=9"]

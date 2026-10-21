@@ -10,7 +10,7 @@ from pathlib import Path
 from PySide6 import QtCore, QtGui, QtMultimedia, QtWidgets
 
 from pyplayer import APP_NAME
-from pyplayer.api import mediainfo, media, paths, reset
+from pyplayer.api import mediainfo, media, online, paths, reset
 from pyplayer.api.manager import PlaylistManager
 from pyplayer.api.media import format_duration, format_size
 from pyplayer.api.playback import PlaybackSession
@@ -38,6 +38,28 @@ WHEEL_VOLUME_STEP = 5
 MediaStatus = QtMultimedia.QMediaPlayer.MediaStatus
 PlaybackState = QtMultimedia.QMediaPlayer.PlaybackState
 MEDIA_FILTER = ("Médias (" + " ".join(f"*{e}" for e in sorted(media.MEDIA_EXTENSIONS)) + ");;Tous les fichiers (*.*)")
+
+
+class _ResolveSignals(QtCore.QObject):
+    done = QtCore.Signal(int, object, str)          # (jeton, OnlineMedia | None, message d'erreur)
+
+
+class _ResolveTask(QtCore.QRunnable):
+    """Résout une adresse de page en flux (yt-dlp) hors du fil de l'interface."""
+
+    def __init__(self, page_url: str, token: int) -> None:
+        super().__init__()
+        self.page_url, self.token = page_url, token
+        self.signals = _ResolveSignals()
+
+    def run(self) -> None:
+        try:
+            self.signals.done.emit(self.token, online.resolve(self.page_url), "")
+        except online.OnlineError as error:
+            self.signals.done.emit(self.token, None, str(error))
+        except Exception as error:  # noqa: BLE001 -- jamais d'exception perdue dans un fil
+            logger.exception("Résolution en ligne : erreur inattendue")
+            self.signals.done.emit(self.token, None, f"erreur inattendue ({error})")
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -122,6 +144,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.resume = self.manager.resume
         self.inhibitor = SleepInhibitor()
         self._skip_save_on_close = False
+        self._online_token = 0                             # incrémenté à chaque ouverture : ignore les résolutions périmées
         self.title_text = "Pas de média en cours"          # titre du média courant (affiché un instant dans l'OSD)
         self._playing_playlist_id: str | None = None      # playlist du média en cours (cf. playback_playlist)
 
@@ -542,15 +565,42 @@ class MainWindow(QtWidgets.QMainWindow):
         if ok and text:
             self.open_url(QtCore.QUrl.fromUserInput(text))
 
-    def open_url(self, url: QtCore.QUrl):
-        """Lit un flux distant directement (non ajouté aux playlists)."""
+    def open_url(self, url: QtCore.QUrl | str):
+        """Lit une adresse réseau. Un fichier ou flux direct (mp4, HLS, rtsp…) est lu tel quel ; une page web
+        (YouTube, Vimeo…) est d'abord résolue en flux par yt-dlp, en arrière-plan. Jamais ajouté aux playlists."""
+        text = url.toString() if isinstance(url, QtCore.QUrl) else str(url).strip()
+        self._online_token += 1                      # toute résolution précédente encore en cours devient obsolète
+        if online.is_direct_stream(text) or not online.is_web_url(text):
+            self._play_stream(QtCore.QUrl(text) if isinstance(url, str) else url, text)
+            return
+        self.flash("Recherche du flux en ligne…", 0)
+        task = _ResolveTask(text, self._online_token)
+        task.signals.done.connect(self._on_online_resolved)
+        QtCore.QThreadPool.globalInstance().start(task)
+
+    def _on_online_resolved(self, token: int, media, error: str):
+        if token != self._online_token:
+            return                                   # l'utilisateur a ouvert autre chose entre-temps
+        if media is None:
+            self.flash(f"Lecture en ligne impossible : {error}", 8000)
+            return
+        label = media.title + (f"  ({format_duration(media.duration_ms)})" if media.duration_ms else "")
+        self._play_stream(QtCore.QUrl(media.stream_url), label, page=media.page_url)
+
+    def _play_stream(self, url: QtCore.QUrl, title: str, page: str = ""):
+        """Charge un flux distant : on repart d'un état propre (plus de sous-titres, boucle A-B ni miniatures d'avant)."""
         self._record_position()
         self.session.begin_load(None)
+        self._subtitles = None
+        self.player_widget.set_subtitle_text("")
+        self.player_widget.set_thumbnail_source(None)
         self.player.setSource(url)
+        self.player.setPlaybackRate(self._rate)
         self.player.play()
-        self.title_text = f"🌐  {url.toString()}"
-        self.flash(self.title_text, 3500)
-        self.setWindowTitle(f"{url.fileName() or url.host()} — {APP_NAME}")
+        self.title_text = f"🌐  {title}"
+        self.flash(self.title_text, 4000)
+        self.setWindowTitle(f"{title} — {APP_NAME}")
+        self._update_status_info()
 
     def open_paths(self, raw_paths, *, enqueue: bool = False):
         """Point d'entrée unique pour tout ce qui est « ouvert ».
@@ -559,8 +609,13 @@ class MainWindow(QtWidgets.QMainWindow):
         ``enqueue=True`` : ajout à la playlist active sans lancer la lecture.
         """
         files: list[Path] = []
+        urls: list[str] = []
         imported: Playlist | None = None
         for raw in raw_paths:
+            text = str(raw).strip()
+            if "://" in text and not text.lower().startswith("file://"):
+                urls.append(text)                      # adresse réseau : lue en ligne (jamais traitée comme un chemin)
+                continue
             path = Path(raw)
             if path.is_dir():
                 files.extend(media.scan_folder(path))
@@ -574,6 +629,11 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 self.flash(f"Ignoré : {path.name}")
 
+        if urls and not files and imported is None:
+            if enqueue:
+                self.flash("Les adresses réseau ne s'ajoutent pas aux playlists : elles sont lues directement")
+            self.open_url(urls[0])
+            return
         if imported is not None and not files:
             self.manager.set_active(imported.id)
             self.initialize_playlist_state()
@@ -614,13 +674,21 @@ class MainWindow(QtWidgets.QMainWindow):
         self.raise_()
 
     def dragEnterEvent(self, event):
-        if event.mimeData().hasUrls():
+        mime = event.mimeData()
+        if mime.hasUrls() or (mime.hasText() and online.is_web_url(mime.text().strip().splitlines()[0] if mime.text().strip() else "")):
             event.acceptProposedAction()
 
     def dropEvent(self, event):
-        dropped = [os.path.normpath(url.toLocalFile()) for url in event.mimeData().urls() if url.isLocalFile()]
+        mime = event.mimeData()
+        dropped = [os.path.normpath(url.toLocalFile()) for url in mime.urls() if url.isLocalFile()]
+        web = [url.toString() for url in mime.urls() if not url.isLocalFile() and url.scheme() in ("http", "https")]
+        if not web and not dropped and mime.hasText():                  # lien glissé depuis un navigateur (texte brut)
+            web = [line.strip() for line in mime.text().splitlines() if online.is_web_url(line)]
         if dropped:
             self.open_paths(dropped, enqueue=False)
+            event.acceptProposedAction()
+        elif web:
+            self.open_url(web[0])
             event.acceptProposedAction()
 
     def fill_recent_menu(self):

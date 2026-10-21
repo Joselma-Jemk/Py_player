@@ -84,6 +84,10 @@ def is_direct_stream(text: str) -> bool:
 
 
 # ---------------------------------------------------------------------- lecture du résultat de yt-dlp
+def _number(value: Any) -> float:
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0.0
+
+
 def _pick_format(info: dict[str, Any]) -> dict[str, Any]:
     """Format unique à lire : celui choisi par yt-dlp si c'est un seul flux, sinon le meilleur format combiné."""
     requested = info.get("requested_formats")
@@ -92,13 +96,15 @@ def _pick_format(info: dict[str, Any]) -> dict[str, Any]:
         info = {**info, "requested_formats": None}
     if info.get("url") and not info.get("requested_formats"):
         return info
-    combined = [f for f in info.get("formats") or []
+    raw = info.get("formats")
+    formats = [f for f in (raw if isinstance(raw, list) else []) if isinstance(f, dict)]
+    combined = [f for f in formats
                 if f.get("url") and f.get("vcodec") not in (None, "none") and f.get("acodec") not in (None, "none")]
     if combined:
-        return max(combined, key=lambda f: (f.get("height") or 0, f.get("tbr") or 0))
-    audio = [f for f in info.get("formats") or [] if f.get("url") and f.get("acodec") not in (None, "none")]
+        return max(combined, key=lambda f: (_number(f.get("height")), _number(f.get("tbr"))))
+    audio = [f for f in formats if f.get("url") and f.get("acodec") not in (None, "none")]
     if audio:
-        return max(audio, key=lambda f: f.get("abr") or f.get("tbr") or 0)
+        return max(audio, key=lambda f: _number(f.get("abr")) or _number(f.get("tbr")))
     raise OnlineError("Aucun flux lisible directement (ce site ne propose que des flux séparés).")
 
 
@@ -107,7 +113,8 @@ def parse_info(info: dict[str, Any], page_url: str = "") -> OnlineMedia:
     if not isinstance(info, dict):
         raise OnlineError("Réponse inattendue de yt-dlp.")
     if info.get("_type") == "playlist" or (info.get("entries") and not info.get("url")):
-        entries = [e for e in info.get("entries") or [] if isinstance(e, dict)]
+        raw_entries = info.get("entries")
+        entries = [e for e in (raw_entries if isinstance(raw_entries, list) else []) if isinstance(e, dict)]
         if not entries:
             raise OnlineError("Cette adresse ne contient aucune vidéo.")
         info = entries[0]
