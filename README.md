@@ -15,7 +15,11 @@ Prérequis : Python ≥ 3.10. Qt Multimedia utilise son backend FFmpeg (déjà e
 ### Binaire autonome (sans Python)
 
 Les releases GitHub contiennent un exécutable unique par système (`pyplayer-<version>-linux-x86_64`,
-`pyplayer-<version>-windows-AMD64.exe`) avec leurs sommes SHA256. Pour en construire un soi-même :
+`pyplayer-<version>-windows-AMD64.exe`) avec leurs sommes SHA256, et sous Windows un **installateur**
+(`pyplayer-<version>-windows-setup.exe`) : installation sans droits administrateur (ou pour tous les utilisateurs
+si on le demande), raccourci du menu Démarrer, désinstalleur, et enregistrement dans « Ouvrir avec… » pour tous les
+formats audio et vidéo (le lecteur par défaut reste au choix de l'utilisateur, dans les paramètres Windows).
+Pour construire un binaire soi-même :
 
 ```bash
 pip install -e ".[build]"

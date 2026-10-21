@@ -78,6 +78,35 @@ jobs:
           binary=$(ls dist/pyplayer-*)
           echo "binaire : $binary"
           "./$binary" --version
+      - name: Installateur Windows (Inno Setup)
+        if: matrix.label == 'windows'
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          $version = (Select-String -Path src/pyplayer/__init__.py -Pattern '^__version__ = "(.*)"').Matches[0].Groups[1].Value
+          $exe = (Get-ChildItem dist -Filter "pyplayer-*.exe" | Select-Object -First 1).FullName
+          $out = & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" "/DExeSource=$exe" packaging\pyplayer.iss 2>&1
+          $code = $LASTEXITCODE
+          $out | Select-Object -Last 15 | ForEach-Object { if ($code -ne 0) { Write-Host "::error title=Inno Setup::$_" } else { Write-Host $_ } }
+          exit $code
+      - name: Test d'installation et de désinstallation silencieuses
+        if: matrix.label == 'windows'
+        shell: pwsh
+        run: |
+          $setup = (Get-ChildItem dist -Filter "*-setup.exe" | Select-Object -First 1).FullName
+          $dir = Join-Path $env:RUNNER_TEMP "pp-install"
+          $p = Start-Process -FilePath $setup -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$dir" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Write-Host "::error title=Installation::code $($p.ExitCode)"; exit 1 }
+          if (-not (Test-Path "$dir\PyPlayer.exe")) { Write-Host "::error title=Installation::PyPlayer.exe absent"; exit 1 }
+          if (-not (Test-Path "HKCU:\Software\Classes\PyPlayer.media\shell\open\command")) { Write-Host "::error title=Installation::association Ouvrir avec absente"; exit 1 }
+          if (-not (Test-Path "HKCU:\Software\Classes\.mp4\OpenWithProgids")) { Write-Host "::error title=Installation::.mp4 non déclaré"; exit 1 }
+          $r = Start-Process -FilePath "$dir\PyPlayer.exe" -ArgumentList "--version" -Wait -PassThru
+          if ($r.ExitCode -ne 0) { Write-Host "::error title=Binaire installé::code $($r.ExitCode)"; exit 1 }
+          $u = Start-Process -FilePath "$dir\unins000.exe" -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait -PassThru
+          Start-Sleep -Seconds 3
+          if (Test-Path "$dir\PyPlayer.exe") { Write-Host "::error title=Désinstallation::PyPlayer.exe toujours présent"; exit 1 }
+          if (Test-Path "HKCU:\Software\Classes\PyPlayer.media") { Write-Host "::error title=Désinstallation::clé de registre restante"; exit 1 }
+          Write-Host "installation, lancement et désinstallation OK"
       - name: Somme de contrôle
         shell: bash
         run: |
