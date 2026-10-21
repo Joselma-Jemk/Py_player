@@ -10,7 +10,7 @@ from pathlib import Path
 from PySide6 import QtCore, QtGui, QtMultimedia, QtWidgets
 
 from pyplayer import APP_NAME
-from pyplayer.api import media, paths, reset
+from pyplayer.api import mediainfo, media, paths, reset
 from pyplayer.api.manager import PlaylistManager
 from pyplayer.api.media import format_duration, format_size
 from pyplayer.api.playback import PlaybackSession
@@ -1347,12 +1347,51 @@ class MainWindow(QtWidgets.QMainWindow):
         selected = self.dock_widget.get_selected_videos()
         return selected[0] if selected else (self._loaded_video or self.current_video)
 
+    def _qt_metadata(self, video: Video) -> tuple[dict[str, str], QtGui.QImage | None]:
+        """Toutes les métadonnées lues par Qt pour le média chargé (libellé → texte) et sa pochette éventuelle."""
+        if video is not self._loaded_video:
+            return {}, None
+        md = self.player.metaData()
+        key = QtMultimedia.QMediaMetaData.Key
+        found: dict[str, str] = {}
+        for k in md.keys():
+            if k in (key.ThumbnailImage, key.CoverArtImage):
+                continue
+            try:
+                value = md.stringValue(k)
+            except RuntimeError:
+                continue
+            if value:
+                found[QtMultimedia.QMediaMetaData.metaDataKeyToString(k)] = value
+        cover = None
+        for k in (key.CoverArtImage, key.ThumbnailImage):
+            try:
+                candidate = md.value(k) if k in md.keys() else None
+            except RuntimeError:
+                candidate = None
+            if isinstance(candidate, QtGui.QImage) and not candidate.isNull():
+                cover = candidate
+                break
+        return found, cover
+
+    def _info_sections(self, video: Video) -> tuple[list[mediainfo.InfoSection], QtGui.QImage | None]:
+        """Sections détaillées : fichier, conteneur et pistes (ffprobe si présent), puis métadonnées de Qt."""
+        sections = [mediainfo.file_section(video.path)]
+        data = mediainfo.probe(video.path)
+        if data:
+            sections += mediainfo.sections_from_probe(data)
+        qt_values, cover = self._qt_metadata(video)
+        sections = mediainfo.merge(sections, mediainfo.qt_section(qt_values))
+        return sections, cover
+
     def show_media_info(self, video: Video | None = None):
         video = video if isinstance(video, Video) else self._target_video()
         if video is None:
             self.flash("Aucun média sélectionné")
             return
-        MediaInfoDialog(self._info_rows(video), video.name, self).exec()
+        sections, cover = self._info_sections(video)
+        MediaInfoDialog(self._info_rows(video), video.name, self, sections=sections, cover=cover,
+                        path=video.path).exec()
 
     def reveal_current_file(self, video: Video | None = None):
         video = video if isinstance(video, Video) else self._target_video()

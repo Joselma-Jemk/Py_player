@@ -276,13 +276,25 @@ class AboutDialog(QtWidgets.QDialog):
 
 
 class MediaInfoDialog(QtWidgets.QDialog):
-    """Informations sur le média en cours : fichier, durée, résolution, codecs…"""
+    """Informations détaillées sur un média : résumé, fichier, conteneur, pistes, chapitres, métadonnées, pochette.
 
-    def __init__(self, rows: list[tuple[str, str]], title: str, parent=None):
+    ``rows`` : résumé affiché en tête. ``sections`` : sections supplémentaires (``InfoSection``). ``cover`` : pochette
+    ou image du média (``QImage``). ``path`` : active le calcul de l'empreinte SHA-256 du fichier."""
+
+    hash_ready = QtCore.Signal(str)
+
+    def __init__(self, rows: list[tuple[str, str]], title: str, parent=None, *, sections=None, cover=None,
+                 path: Path | str | None = None):
         super().__init__(parent)
+        from pyplayer.api import mediainfo
+        self._mediainfo = mediainfo
+        self._title = title
+        self._path = Path(path) if path else None
+        self._sections = [mediainfo.InfoSection("Résumé", [(k, v) for k, v in rows if v])] + list(sections or [])
+        self._cancel_hash = False
         self.setWindowTitle("Informations sur le média")
         self.setModal(True)
-        self.resize(560, 420)
+        self.resize(680, 560)
         self.setStyleSheet(f"""
             QDialog {{ background-color: {constant.PRINCIPAL_COLOR}; }}
             QLabel {{ color: {constant.PRINCIPAL_TEXT_COLOR}; background: transparent; }}
@@ -291,6 +303,7 @@ class MediaInfoDialog(QtWidgets.QDialog):
             QPushButton {{ padding: 8px 16px; border-radius: 6px; font-weight: 600;
                           background-color: {constant.THIRD_COLOR}; color: {constant.PRINCIPAL_TEXT_COLOR}; }}
             QPushButton:hover {{ background-color: {constant.HOVER_COLOR}; }}
+            QPushButton:disabled {{ color: #8e8e93; }}
         """)
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -301,25 +314,82 @@ class MediaInfoDialog(QtWidgets.QDialog):
         heading.setWordWrap(True)
         layout.addWidget(heading)
 
-        body = "".join(
-            f"<tr><td style='color:#a0a0a0; padding:3px 14px 3px 0; white-space:nowrap;'>{html.escape(k)}</td>"
-            f"<td style='padding:3px 0;'>{html.escape(v)}</td></tr>"
-            for k, v in rows if v
-        )
-        browser = QtWidgets.QTextBrowser()
-        browser.setHtml(f"<table cellspacing='0'>{body}</table>")
-        layout.addWidget(browser, 1)
+        self.cover_label = QtWidgets.QLabel()
+        self.cover_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        if cover is not None and not cover.isNull():
+            pixmap = QtGui.QPixmap.fromImage(cover).scaledToHeight(
+                140, QtCore.Qt.TransformationMode.SmoothTransformation)
+            self.cover_label.setPixmap(pixmap)
+            layout.addWidget(self.cover_label)
+        else:
+            self.cover_label.hide()
+
+        self.browser = QtWidgets.QTextBrowser()
+        self.browser.setOpenExternalLinks(False)
+        self._render()
+        layout.addWidget(self.browser, 1)
+
+        self.hash_label = QtWidgets.QLabel("")
+        self.hash_label.setStyleSheet("color: #a0a0a0; font-size: 12px;")
+        self.hash_label.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.hash_label.setWordWrap(True)
+        self.hash_label.hide()
+        layout.addWidget(self.hash_label)
 
         buttons = QtWidgets.QHBoxLayout()
+        self.btn_hash = QtWidgets.QPushButton("Empreinte SHA-256")
+        self.btn_hash.setEnabled(self._path is not None and self._path.is_file())
+        self.btn_hash.clicked.connect(self._compute_hash)
+        self.hash_ready.connect(self._show_hash)
+        buttons.addWidget(self.btn_hash)
         buttons.addStretch()
-        copy = QtWidgets.QPushButton("Copier")
-        copy.clicked.connect(lambda: QtWidgets.QApplication.clipboard().setText(
-            "\n".join(f"{k}: {v}" for k, v in rows if v)))
+        self.btn_copy = QtWidgets.QPushButton("Copier")
+        self.btn_copy.clicked.connect(lambda: QtWidgets.QApplication.clipboard().setText(self.as_text()))
         close = QtWidgets.QPushButton("Fermer")
         close.clicked.connect(self.accept)
-        buttons.addWidget(copy)
+        buttons.addWidget(self.btn_copy)
         buttons.addWidget(close)
         layout.addLayout(buttons)
+
+    def as_text(self) -> str:
+        return self._mediainfo.to_text(self._title, self._sections)
+
+    def _render(self) -> None:
+        parts = []
+        for section in self._sections:
+            rows = "".join(
+                f"<tr><td style='color:#a0a0a0; padding:2px 14px 2px 0; white-space:nowrap;' valign='top'>"
+                f"{html.escape(k)}</td><td style='padding:2px 0;'>{html.escape(v)}</td></tr>"
+                for k, v in section.rows if v)
+            parts.append(f"<h3 style='color:{constant.OK_ONE_COLOR}; margin:14px 0 4px 0;'>"
+                         f"{html.escape(section.title)}</h3><table cellspacing='0'>{rows}</table>")
+        self.browser.setHtml("".join(parts))
+
+    def _compute_hash(self) -> None:
+        import threading
+        self.btn_hash.setEnabled(False)
+        self.hash_label.setText("Calcul de l'empreinte en cours…")
+        self.hash_label.show()
+        path = self._path
+
+        def work():
+            digest = self._mediainfo.sha256_file(path, cancelled=lambda: self._cancel_hash)
+            self.hash_ready.emit(digest or "")
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _show_hash(self, digest: str) -> None:
+        if not digest:
+            self.hash_label.setText("Empreinte indisponible (fichier illisible ou calcul annulé).")
+            self.btn_hash.setEnabled(True)
+            return
+        self.hash_label.setText(f"SHA-256 : {digest}")
+        self._sections.append(self._mediainfo.InfoSection("Empreinte", [("SHA-256", digest)]))
+        self._render()
+
+    def done(self, result: int) -> None:  # noqa: N802 -- surcharge Qt
+        self._cancel_hash = True                     # un calcul en cours s'arrête à la fermeture
+        super().done(result)
 
 
 class ResetDataDialog(QtWidgets.QDialog):

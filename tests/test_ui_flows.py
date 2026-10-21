@@ -297,6 +297,7 @@ def test_info_reveal_logs_about_help_and_screenshot_without_media(window, monkey
     from pyplayer.ui import main_window as mw
     opened = []
     monkeypatch.setattr(QtGui.QDesktopServices, "openUrl", lambda url: opened.append(url.toLocalFile()) or True)
+    monkeypatch.setattr("pyplayer.api.mediainfo.find_ffprobe", lambda: None)    # Popen est remplacé ci-dessous
     launched = []                                             # Windows/macOS : l'explorateur est lancé par un sous-processus
     monkeypatch.setattr(mw.subprocess, "Popen", lambda args, *a, **k: launched.append(list(args)))
     shown = []
@@ -467,3 +468,21 @@ def test_playback_playlist_falls_back_to_the_displayed_one_when_the_playing_one_
     window.stop_playing()
     window.manager.remove_playlist(a.id)
     assert window.playback_playlist is window.active_playlist
+
+
+@needs_ffmpeg
+def test_media_info_collects_file_ffprobe_and_qt_metadata_for_the_loaded_video(window, qapp, tmp_path):
+    path = tmp_path / "info.mp4"
+    subprocess.run([FFMPEG, "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=duration=2:size=320x180:rate=25",
+                    "-f", "lavfi", "-i", "sine=frequency=440:duration=2", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                    "-c:a", "aac", "-metadata", "title=Titre de test", str(path)], check=True, timeout=60)
+    window.open_paths([str(path)])
+    assert wait_until(qapp, lambda: window._loaded_video is not None and window.player.duration() > 0, 8)
+    pump(qapp, 200)
+    sections, _cover = window._info_sections(window._loaded_video)
+    titles = [s.title for s in sections]
+    assert titles[0] == "Fichier" and "Conteneur" in titles and "Vidéo" in titles and "Audio" in titles
+    rows = {label: value for s in sections for label, value in s.rows}
+    assert rows["Résolution"] == "320×180" and rows["Nom"] == "info.mp4"
+    assert any("Titre de test" in value for value in rows.values())          # métadonnée lue, sans doublon
+    window.stop_playing()
