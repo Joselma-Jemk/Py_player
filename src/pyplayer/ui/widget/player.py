@@ -2,6 +2,7 @@ from PySide6 import QtCore, QtGui, QtMultimedia, QtMultimediaWidgets, QtWidgets
 
 from pyplayer.api import paths
 from pyplayer.ui import theme
+from pyplayer.ui.widget.link_toast import LinkToast
 from pyplayer.ui.widget.osd import Osd
 from pyplayer.ui.widget.thumbnails import ThumbnailBubble, ThumbnailProvider
 
@@ -245,6 +246,7 @@ class PlayerWidget(QtWidgets.QWidget):
         stage_layout.setCurrentWidget(self.subtitle_holder)
 
         self.osd = Osd(self)                       # messages superposés à l'image ou au logo (remplace la barre d'état)
+        self.toast = LinkToast(self)               # « Lien détecté : télécharger ? »
         self.main_layout.addWidget(self.placeholder_label)
         self.main_layout.addWidget(self.stage)
         self.main_layout.addWidget(self.slider)

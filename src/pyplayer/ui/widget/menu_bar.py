@@ -249,6 +249,10 @@ class MenuBarWidget(QtWidgets.QMenuBar):
         self.act_open_file = self._action(menu, "open_file", "Ajouter un fichier à la playlist", "Ctrl+O")
         self.act_open_folder = self._action(menu, "open_folder", "Ajouter un dossier à la playlist", "Ctrl+D")
         self.act_open_url = self._action(menu, "link", "Ouvrir une adresse réseau…", "Ctrl+U")
+        self.act_download = self._action(menu, "download", "Télécharger depuis une adresse…", "Ctrl+Shift+D")
+        self.act_download_options = self._action(menu, "download", "Options de téléchargement…")
+        self.act_watch_clipboard = self._action(menu, "link", "Détecter les liens copiés")
+        self.act_watch_clipboard.setCheckable(True)
         menu.addSeparator()
         self.recentMenu = self.new_submenu(menu, "Fichiers récents", "recent_files")
         menu.addSeparator()
@@ -633,6 +637,7 @@ class HelpDialog(QtWidgets.QDialog):
                     ("Ctrl+O", "📂 Ouvrir", "Ajouter des fichiers"),
                     ("Ctrl+D", "📁 Dossier", "Ajouter un dossier"),
                     ("Ctrl+U", "🔗 Adresse", "Lire une URL"),
+                    ("Ctrl+Maj+D", "⬇️ Télécharger", "Télécharger depuis une adresse"),
                     ("Ctrl+N", "🆕 Nouvelle", "Créer une playlist"),
                     ("Ctrl+P", "📋 Playlist", "Afficher/Masquer"),
                     ("Glisser", "🖱️ Déposer", "Fichiers/dossiers sur la fenêtre")

@@ -19,6 +19,7 @@ from pyplayer.api.downloads import (DownloadManager, DownloadOptions, PlaylistEn
                                     parse_selection, select_entries, validate)
 
 URL = "https://site.exemple/watch?v=abc"
+FFMPEG_DIR = "/opt/ffmpeg/bin"             # « ffmpeg présent » pour les tests d'arguments (rien n'est exécuté)
 
 
 def until(condition, timeout=10.0, step=0.02):
@@ -32,7 +33,7 @@ def until(condition, timeout=10.0, step=0.02):
 
 # ----------------------------------------------------------------- options et arguments
 def test_default_arguments_are_safe_and_complete(tmp_path):
-    args = build_args(URL, tmp_path, DownloadOptions())
+    args = build_args(URL, tmp_path, DownloadOptions(), ffmpeg_dir=FFMPEG_DIR)
     assert args[-2:] == ["--", URL]                                    # l'adresse vient après « -- » : jamais une option
     assert "--no-playlist" in args and "--continue" in args and "--ignore-config" in args
     assert "--format=bv*+ba/b" in args and "--merge-output-format=mp4" in args
@@ -45,11 +46,12 @@ def test_default_arguments_are_safe_and_complete(tmp_path):
 @pytest.mark.parametrize("preset,expected", [("720p", "--format=bv*[height<=720]+ba/b[height<=720]"),
                                              ("1080p", "--format=bv*[height<=1080]+ba/b[height<=1080]")])
 def test_quality_presets(tmp_path, preset, expected):
-    assert expected in build_args(URL, tmp_path, DownloadOptions(preset=preset))
+    assert expected in build_args(URL, tmp_path, DownloadOptions(preset=preset), ffmpeg_dir=FFMPEG_DIR)
 
 
 def test_audio_presets_extract_audio_and_skip_video_options(tmp_path):
-    args = build_args(URL, tmp_path, DownloadOptions(preset="audio_mp3", subtitles=True, embed_subs=True))
+    args = build_args(URL, tmp_path, DownloadOptions(preset="audio_mp3", subtitles=True, embed_subs=True),
+                      ffmpeg_dir=FFMPEG_DIR)
     assert "--extract-audio" in args and "--audio-format=mp3" in args and "--audio-quality=0" in args
     assert not any(a.startswith(("--format=", "--merge-output-format")) for a in args) and "--embed-subs" not in args
 
@@ -71,9 +73,37 @@ def test_advanced_options_are_translated(tmp_path):
     assert not any(a.startswith("--download-archive") for a in args)
 
 
+def test_without_ffmpeg_the_engine_picks_single_files_and_drops_what_needs_ffmpeg(tmp_path):
+    full = DownloadOptions(subtitles=True, sponsorblock="remove", container="mkv")
+    args = build_args(URL, tmp_path, full, ffmpeg_dir=None)
+    assert "--format=b" in args and not any(a.startswith("--merge-output-format") for a in args)
+    for needs_ffmpeg in ("--embed-metadata", "--embed-thumbnail", "--embed-chapters", "--embed-subs"):
+        assert needs_ffmpeg not in args
+    assert not any(a.startswith(("--sponsorblock", "--ffmpeg-location", "--convert-thumbnails")) for a in args)
+    assert "--write-subs" in args                                          # les sous-titres séparés restent possibles
+    assert "--format=b[height<=720]/b" in build_args(URL, tmp_path, DownloadOptions(preset="720p"))
+    audio = build_args(URL, tmp_path, DownloadOptions(preset="audio_mp3"))
+    assert "--format=ba/b" in audio and "--extract-audio" not in audio     # audio brut, sans conversion
+    assert "--format=best[height<=480]" in build_args(URL, tmp_path, DownloadOptions(
+        preset="custom", custom_format="best[height<=480]"))               # le choix explicite de l'utilisateur est respecté
+
+
+def test_ffmpeg_dir_prefers_the_one_installed_by_pyplayer(monkeypatch, tmp_path):
+    monkeypatch.setenv("PYPLAYER_HOME", str(tmp_path / "home"))
+    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/ffmpeg" if name == "ffmpeg" else None)
+    assert d.ffmpeg_dir() == "/usr/bin"
+    own = d.tools_dir() / "ffmpeg" / ("ffmpeg.exe" if __import__("os").name == "nt" else "ffmpeg")
+    own.parent.mkdir(parents=True)
+    own.write_bytes(b"x")
+    assert d.ffmpeg_dir() == str(own.parent)
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+    own.unlink()
+    assert d.ffmpeg_dir() is None
+
+
 def test_custom_format_and_aria2c_only_when_available(tmp_path):
     assert "--format=best[height<=480]" in build_args(URL, tmp_path, DownloadOptions(
-        preset="custom", custom_format="best[height<=480]"))
+        preset="custom", custom_format="best[height<=480]"), ffmpeg_dir=FFMPEG_DIR)
     on = build_args(URL, tmp_path, DownloadOptions(use_aria2c=True), aria2c="/usr/bin/aria2c")
     off = build_args(URL, tmp_path, DownloadOptions(use_aria2c=True), aria2c=None)
     assert "--downloader=/usr/bin/aria2c" in on and not any(a.startswith("--downloader") for a in off)
@@ -610,3 +640,17 @@ def test_the_application_executable_can_act_as_ytdlp(tmp_path):
     failure = subprocess.run([sys.executable, "-m", "pyplayer", d.RUN_FLAG, "--option-inexistante"],
                              capture_output=True, text=True, env=env, timeout=60)
     assert failure.returncode != 0                                            # le code de sortie de yt-dlp est transmis
+
+
+def test_removing_a_running_item_never_makes_it_reappear_through_a_late_event(tmp_path):
+    process = FakeProcess([progress(1, 100)], hold=True)
+    manager, events = make_manager(tmp_path, lambda args: process)
+    item = manager.add(URL)
+    assert until(lambda: manager.get(item.id).downloaded == 1)
+    manager.remove(item.id)
+    assert until(lambda: process.terminated)
+    time.sleep(0.3)                                       # laisse le fil de travail se terminer
+    assert manager.get(item.id) is None and manager.items() == []
+    after_removed = events[[k for k, *_ in events].index("removed") + 1:]
+    assert after_removed == []                            # aucun événement après la suppression
+    manager.shutdown()

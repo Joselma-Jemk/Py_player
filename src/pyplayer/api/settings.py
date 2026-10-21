@@ -19,6 +19,12 @@ DEFAULTS: dict[str, Any] = {
     "aspect_mode": "fit",          # fit | stretch | fill
     "always_on_top": False,
     "thumbnails": True,            # miniatures au survol de la barre de progression
+    "download_dir": "",            # dossier des téléchargements (vide = Vidéos/PyPlayer)
+    "download_preset": "best",     # qualité choisie dans l'onglet Téléchargements
+    "download_options": {},        # options avancées (voir DownloadOptions)
+    "download_max_parallel": 2,
+    "watch_clipboard": True,       # propose de télécharger/lire un lien copié
+    "downloads_to_playlist": True, # ajoute chaque téléchargement terminé à la playlist « Téléchargements »
     "audio_device": "",            # id (base64) du périphérique de sortie, vide = défaut système
     "recent_files": [],            # list[str]
     "last_open_dir": "",

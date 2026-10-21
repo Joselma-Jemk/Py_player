@@ -17,12 +17,14 @@ BACKUPS = "backups"
 RESUME = "resume"
 SETTINGS = "settings"
 LOGS = "logs"
+DOWNLOADS = "downloads"
 
 LABELS = {
     PLAYLISTS: "Playlists",
     BACKUPS: "Sauvegardes automatiques des playlists",
     RESUME: "Positions de reprise de lecture",
     SETTINGS: "Réglages (volume, fenêtre, fichiers récents…)",
+    DOWNLOADS: "Liste des téléchargements (les fichiers téléchargés sont conservés)",
     LOGS: "Journaux",
 }
 ALL_CATEGORIES = tuple(LABELS)
@@ -62,6 +64,8 @@ def _files_of(home: Path, category: str) -> list[Path]:
         return [p for p in (home / "resume.json", home / "resume.json.corrupt") if p.is_file()]
     if category == SETTINGS:
         return [p for p in (home / "settings.json", home / "settings.json.corrupt") if p.is_file()]
+    if category == DOWNLOADS:
+        return [p for p in (home / "downloads.json", home / "downloads.json.corrupt") if p.is_file()]
     if category == LOGS:
         return sorted(p for p in home.glob("pyplayer.log*") if p.is_file())
     raise KeyError(category)

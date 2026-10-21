@@ -18,6 +18,7 @@ def populated_home(isolated_home):
     PlaylistManager(isolated_home)                       # crée un instantané
     (isolated_home / "resume.json").write_text("{}", encoding="utf-8")
     (isolated_home / "settings.json").write_text("{}", encoding="utf-8")
+    (isolated_home / "downloads.json").write_text('{"items": []}', encoding="utf-8")
     (isolated_home / "pyplayer.log").write_text("ligne\n", encoding="utf-8")
     (isolated_home / "pyplayer.log.1").write_text("ancienne\n", encoding="utf-8")
     return manager
@@ -29,6 +30,7 @@ def test_summary_counts_every_category(isolated_home):
     assert set(info) == set(ALL_CATEGORIES)
     assert info[reset.PLAYLISTS].files >= 1 and info[reset.BACKUPS].files >= 1
     assert info[reset.RESUME].files == 1 and info[reset.SETTINGS].files == 1 and info[reset.LOGS].files == 2
+    assert info[reset.DOWNLOADS].files == 1
     assert all(i.size > 0 for i in info.values())
 
 
@@ -39,8 +41,9 @@ def test_reset_everything_empties_user_data_but_keeps_foreign_files(isolated_hom
     media = tmp_path / "film.mp4"
     media.write_bytes(b"x")
     report = reset_data(isolated_home)
-    assert report.ok and report.deleted_files >= 6 and report.freed_bytes > 0
+    assert report.ok and report.deleted_files >= 7 and report.freed_bytes > 0
     assert not (isolated_home / "resume.json").exists() and not (isolated_home / "settings.json").exists()
+    assert not (isolated_home / "downloads.json").exists()
     assert not (isolated_home / "pyplayer.log.1").exists()
     assert (isolated_home / "pyplayer.log").read_text(encoding="utf-8") == ""       # journal ouvert : vidé, pas supprimé
     assert not (isolated_home / "playlists").exists()                               # dossiers vides retirés

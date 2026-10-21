@@ -10,7 +10,7 @@ from pathlib import Path
 from PySide6 import QtCore, QtGui, QtMultimedia, QtWidgets
 
 from pyplayer import APP_NAME
-from pyplayer.api import mediainfo, media, online, paths, reset
+from pyplayer.api import downloads, links, mediainfo, media, online, paths, reset
 from pyplayer.api.manager import PlaylistManager
 from pyplayer.api.media import format_duration, format_size
 from pyplayer.api.playback import PlaybackSession
@@ -21,6 +21,7 @@ from pyplayer.ui import theme
 from pyplayer.ui.dialogs import AboutDialog, MediaInfoDialog, NewPlaylistDialog, ResetDataDialog
 from pyplayer.ui.power import SleepInhibitor
 from pyplayer.ui.widget.dock_widget import DeletePlaylistDialog, DockWidget, VideoListItem
+from pyplayer.ui.widget.downloads_panel import DownloadOptionsDialog, DownloadsPanel
 from pyplayer.ui.widget.menu_bar import HelpDialog, MenuBarWidget
 from pyplayer.ui.widget.player import PlayerWidget
 from pyplayer.ui.widget.tool_bar import ToolBarWidget
@@ -145,6 +146,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.inhibitor = SleepInhibitor()
         self._skip_save_on_close = False
         self._online_token = 0                             # incrémenté à chaque ouverture : ignore les résolutions périmées
+        self._online_origin = ""
         self.title_text = "Pas de média en cours"          # titre du média courant (affiché un instant dans l'OSD)
         self._playing_playlist_id: str | None = None      # playlist du média en cours (cf. playback_playlist)
 
@@ -152,9 +154,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self._was_maximized = False
         self._dock_visible_before_fullscreen = True
 
+        self._streaming_origin = ""                         # adresse saisie du flux en cours (bascule vers le fichier téléchargé)
+        self._seen_links: set[str] = set()                  # liens déjà proposés (presse-papiers)
+        self.downloads = downloads.DownloadManager(
+            self.manager.data_dir / "downloads.json", max_parallel=int(self.settings.get("download_max_parallel")))
+
         self.setup_ui()
+        self._setup_downloads()
         self.apply_settings()
         self.initialize_playlist_state()
+        self.downloads.start()                              # reprend ce qui était en cours à la dernière fermeture
 
     # ===================================================================
     # CONSTRUCTION DE L'INTERFACE (mise en page identique aux versions précédentes)
@@ -235,6 +244,9 @@ class MainWindow(QtWidgets.QMainWindow):
         m.act_open_file.triggered.connect(self.add_video_to_playlist)
         m.act_open_folder.triggered.connect(self.choose_folder)
         m.act_open_url.triggered.connect(self.open_url_dialog)
+        m.act_download.triggered.connect(lambda: self.show_downloads(focus=True))
+        m.act_download_options.triggered.connect(self.edit_download_options)
+        m.act_watch_clipboard.toggled.connect(self.set_watch_clipboard)
         m.recentMenu.aboutToShow.connect(self.fill_recent_menu)
         m.act_import_playlist.triggered.connect(self.import_playlist_file)
         m.act_export_playlist.triggered.connect(self.export_playlist_file)
@@ -367,6 +379,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.set_aspect_mode(s.get("aspect_mode"), save=False)
         self.menubar_widget.act_always_on_top.setChecked(bool(s.get("always_on_top")))
+        self.menubar_widget.act_watch_clipboard.setChecked(bool(s.get("watch_clipboard")))
+        self.downloads.set_max_parallel(int(s.get("download_max_parallel")))
         thumbs = bool(s.get("thumbnails"))
         self.menubar_widget.act_thumbnails.setChecked(thumbs)
         self.player_widget.set_thumbnails_enabled(thumbs)
@@ -392,11 +406,122 @@ class MainWindow(QtWidgets.QMainWindow):
         self.inhibitor.set_active(False)
         self.unload_media()
         self.player_widget.bubble.hide()
+        self.downloads.shutdown(save=not self._skip_save_on_close)   # les .part restent : reprise au prochain démarrage
         super().closeEvent(event)
 
     @property
     def osd(self):
         return self.player_widget.osd
+
+    # ===================================================================
+    # TÉLÉCHARGEMENTS (yt-dlp) ET LIENS
+    # ===================================================================
+    def _setup_downloads(self):
+        self.downloads_panel = DownloadsPanel(self.downloads, self.settings)
+        self.dock_widget.tab_widget.addTab(self.downloads_panel, "TÉLÉCHARGEMENTS")
+        panel = self.downloads_panel
+        panel.play_requested.connect(lambda path: self.open_paths([path]))
+        panel.stream_requested.connect(self.open_url)
+        panel.folder_requested.connect(self._reveal_path)
+        panel.message.connect(self.flash)
+        panel.finished_item.connect(self._on_download_finished)
+        panel.options_requested.connect(self.edit_download_options)
+        toast = self.player_widget.toast
+        toast.download_requested.connect(self.add_download)
+        toast.play_requested.connect(self.open_url)
+        QtGui.QGuiApplication.clipboard().dataChanged.connect(self._on_clipboard_changed)
+
+    def show_downloads(self, focus: bool = True):
+        """Affiche l'onglet Téléchargements (et met le curseur dans le champ de saisie)."""
+        self.dock_widget.setVisible(True)
+        self._sync_playlist_toggle_text()
+        self.dock_widget.tab_widget.setCurrentWidget(self.downloads_panel)
+        if focus:
+            self.downloads_panel.edit_url.setFocus()
+            clip = QtGui.QGuiApplication.clipboard().text()          # un lien déjà copié est proposé tout de suite
+            found = links.hunt(clip)
+            if found and not self.downloads_panel.edit_url.text():
+                self.downloads_panel.edit_url.setText(found[0].url)
+                self.downloads_panel.edit_url.selectAll()
+
+    def add_download(self, url: str):
+        added = self.downloads_panel.add_text(url)
+        if added:
+            self.flash("Ajouté aux téléchargements", 2500)
+
+    def edit_download_options(self):
+        options = downloads.DownloadOptions.from_dict(self.settings.get("download_options"))
+        options.preset = self.downloads_panel.combo_quality.currentData() or options.preset
+        dialog = DownloadOptionsDialog(options, self.settings.get("download_dir"), self)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+        chosen = dialog.result_options()
+        self.settings.set("download_options", chosen.to_dict())
+        self.settings.set("download_dir", dialog.result_folder())
+        index = self.downloads_panel.combo_quality.findData(chosen.preset)
+        if index >= 0:
+            self.downloads_panel.combo_quality.setCurrentIndex(index)
+        self.downloads_panel.check_playlist.setChecked(chosen.playlist)
+        self.flash("Options de téléchargement enregistrées", 2500)
+
+    def set_watch_clipboard(self, enabled: bool):
+        self.settings.set("watch_clipboard", bool(enabled))
+
+    def _on_clipboard_changed(self):
+        """Chasse aux liens : un lien de vidéo copié (navigateur, message…) est proposé en une bulle discrète."""
+        if not self.settings.get("watch_clipboard") or self._skip_save_on_close:
+            return
+        text = QtGui.QGuiApplication.clipboard().text()
+        found = links.hunt(text, ignore=self._seen_links)
+        if not found:
+            return
+        link = found[0]
+        if len(self._seen_links) > 300:
+            self._seen_links.clear()
+        self._seen_links.add(link.url)
+        self.player_widget.toast.offer(link)
+
+    def _downloads_playlist(self) -> Playlist:
+        for playlist in self.manager.playlists:
+            if playlist.kind == "user" and playlist.name == "Téléchargements":
+                return playlist
+        return self.manager.create_playlist("Téléchargements", description="Vidéos téléchargées avec PyPlayer")
+
+    def _on_download_finished(self, item):
+        """Téléchargement terminé : annonce, ajout à la playlist « Téléchargements », bascule du flux vers le fichier."""
+        path = Path(item.filepath)
+        if not path.is_file():
+            return
+        self.flash(f"Téléchargement terminé : {item.title or path.name}", 4000)
+        if media.is_media(path) and self.settings.get("downloads_to_playlist"):
+            playlist = self._downloads_playlist()
+            added = playlist.add(path)
+            self.manager.flush()
+            self.dock_widget.sync_playlists(self.manager.playlists)
+            if added is not None and playlist is self.active_playlist:
+                self.refresh_playlist_view()
+        if self._streaming_origin and self._streaming_origin == item.url and self._loaded_video is None:
+            self._switch_stream_to_local(path)
+
+    def _switch_stream_to_local(self, path: Path):
+        """Pendant qu'on regardait le flux, le fichier est arrivé : on continue sur le fichier local, au même instant."""
+        position, duration = self.player.position(), self.player.duration()
+        if position > 0 and duration > 0 and self.settings.get("resume_playback"):
+            self.resume.update(path, position, duration)         # open_paths reprendra à cet endroit
+        self.flash("Fichier téléchargé : lecture en local", 3500)
+        self.open_paths([str(path)])
+
+    def _reveal_path(self, path: str):
+        target = Path(path)
+        try:
+            if sys.platform.startswith("win"):
+                subprocess.Popen(["explorer", "/select,", str(target)])
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", "-R", str(target)])
+            else:
+                QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(target.parent)))
+        except OSError as error:
+            self.flash(f"Impossible d'ouvrir le dossier : {error}")
 
     def flash(self, message: str, timeout_ms: int = 4000):
         """Message temporaire superposé à la vidéo (en haut à gauche)."""
@@ -570,8 +695,9 @@ class MainWindow(QtWidgets.QMainWindow):
         (YouTube, Vimeo…) est d'abord résolue en flux par yt-dlp, en arrière-plan. Jamais ajouté aux playlists."""
         text = url.toString() if isinstance(url, QtCore.QUrl) else str(url).strip()
         self._online_token += 1                      # toute résolution précédente encore en cours devient obsolète
+        self._online_origin = text
         if online.is_direct_stream(text) or not online.is_web_url(text):
-            self._play_stream(QtCore.QUrl(text) if isinstance(url, str) else url, text)
+            self._play_stream(QtCore.QUrl(text) if isinstance(url, str) else url, text, origin=text)
             return
         self.flash("Recherche du flux en ligne…", 0)
         task = _ResolveTask(text, self._online_token)
@@ -585,11 +711,13 @@ class MainWindow(QtWidgets.QMainWindow):
             self.flash(f"Lecture en ligne impossible : {error}", 8000)
             return
         label = media.title + (f"  ({format_duration(media.duration_ms)})" if media.duration_ms else "")
-        self._play_stream(QtCore.QUrl(media.stream_url), label, page=media.page_url)
+        self._play_stream(QtCore.QUrl(media.stream_url), label, origin=self._online_origin)
 
-    def _play_stream(self, url: QtCore.QUrl, title: str, page: str = ""):
-        """Charge un flux distant : on repart d'un état propre (plus de sous-titres, boucle A-B ni miniatures d'avant)."""
+    def _play_stream(self, url: QtCore.QUrl, title: str, origin: str = ""):
+        """Charge un flux distant : on repart d'un état propre (plus de sous-titres, boucle A-B ni miniatures d'avant).
+        ``origin`` : l'adresse saisie, pour basculer sur le fichier local si elle est téléchargée entre-temps."""
         self._record_position()
+        self._streaming_origin = origin
         self.session.begin_load(None)
         self._subtitles = None
         self.player_widget.set_subtitle_text("")
@@ -819,6 +947,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
 
         self._record_position()                       # mémorise l'endroit où l'on quitte le média précédent
+        self._streaming_origin = ""                   # on ne lit plus de flux en ligne
         self._playing_playlist_id = playlist.id
         if playlist.current is not video:
             playlist.set_current(video, remember=False)
@@ -1465,15 +1594,7 @@ class MainWindow(QtWidgets.QMainWindow):
         video = video if isinstance(video, Video) else self._target_video()
         if video is None:
             return
-        try:
-            if sys.platform.startswith("win"):
-                subprocess.Popen(["explorer", "/select,", str(video.path)])
-            elif sys.platform == "darwin":
-                subprocess.Popen(["open", "-R", str(video.path)])
-            else:
-                QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(video.parent)))
-        except OSError as error:
-            self.flash(f"Impossible d'ouvrir le dossier : {error}")
+        self._reveal_path(str(video.path))
 
     def open_log_folder(self):
         QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(paths.data_dir())))
@@ -1491,6 +1612,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.stop_playing()
         self._skip_save_on_close = True                 # sinon closeEvent recréerait playlists et réglages
         self._flush_timer.stop()
+        self.downloads.shutdown(save=False)             # arrête les téléchargements sans réécrire leur liste
         report = reset.reset_data(self.manager.data_dir, categories)
         logger.info("Réinitialisation : %d fichier(s) supprimé(s), %s libérés, %d erreur(s)",
                     report.deleted_files, reset.format_size(report.freed_bytes), len(report.errors))

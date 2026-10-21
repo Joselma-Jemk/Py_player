@@ -48,6 +48,10 @@ PRESETS = {
     "480p": "bv*[height<=480]+ba/b[height<=480]",
     "audio_mp3": "", "audio_m4a": "", "audio_opus": "", "custom": "",
 }
+SINGLE_FILE_PRESETS = {                # sans ffmpeg : un seul fichier déjà complet (image + son)
+    "best": "b", "1080p": "b[height<=1080]/b", "720p": "b[height<=720]/b", "480p": "b[height<=480]/b",
+    "custom": "b",
+}
 AUDIO_FORMATS = {"audio_mp3": "mp3", "audio_m4a": "m4a", "audio_opus": "opus"}
 SPONSORBLOCK_CATEGORIES = "sponsor,selfpromo,interaction,intro,outro,preview,music_offtopic"
 RETRYABLE = re.compile(r"HTTP Error (5\d\d|429)|timed? ?out|Connection (reset|aborted|refused)|"
@@ -174,6 +178,7 @@ def build_args(url: str, out_dir: Path | str, options: DownloadOptions, *, ffmpe
     validate(options)
     url = online.clean_url(url)
     out_dir = Path(out_dir)
+    with_ffmpeg = bool(ffmpeg_dir)
     args = ["--ignore-config", "--newline", "--no-colors", "--no-warnings", "--no-playlist", "--progress",
             "--progress-template=download:PYPPROG:%(progress)j",
             "--print=before_dl:PYPINFO:%(.{id,title,uploader,duration,playlist_index,n_entries,extractor_key,webpage_url})j",
@@ -181,26 +186,33 @@ def build_args(url: str, out_dir: Path | str, options: DownloadOptions, *, ffmpe
             "--continue", "--part", f"--retries={options.retries}", f"--fragment-retries={options.retries}",
             f"--concurrent-fragments={options.concurrent_fragments}",
             f"--paths=home:{out_dir}", f"--output={options.output_template or default_template(group)}"]
-    if options.preset in AUDIO_FORMATS:
+    # Sans ffmpeg : pas de fusion vidéo+audio, de conversion ni d'intégration -> on prend un fichier unique, tel quel.
+    if options.preset in AUDIO_FORMATS and with_ffmpeg:
         args += ["--extract-audio", f"--audio-format={AUDIO_FORMATS[options.preset]}", "--audio-quality=0"]
+    elif options.preset in AUDIO_FORMATS:
+        args.append("--format=ba/b")
     else:
-        selector = options.custom_format if options.preset == "custom" else PRESETS[options.preset]
-        args += [f"--format={selector}", f"--merge-output-format={options.container}"]
-    if options.embed_metadata:
-        args.append("--embed-metadata")
-    if options.embed_thumbnail:
-        args += ["--embed-thumbnail", "--convert-thumbnails=jpg"]
-    if options.embed_chapters:
-        args.append("--embed-chapters")
+        selector = options.custom_format if options.preset == "custom" else (
+            PRESETS[options.preset] if with_ffmpeg else SINGLE_FILE_PRESETS[options.preset])
+        args.append(f"--format={selector}")
+        if with_ffmpeg:
+            args.append(f"--merge-output-format={options.container}")
+    if with_ffmpeg:
+        if options.embed_metadata:
+            args.append("--embed-metadata")
+        if options.embed_thumbnail:
+            args += ["--embed-thumbnail", "--convert-thumbnails=jpg"]
+        if options.embed_chapters:
+            args.append("--embed-chapters")
     if options.subtitles:
         args += ["--write-subs", f"--sub-langs={options.sub_langs}"]
         if options.auto_subs:
             args.append("--write-auto-subs")
-        if options.embed_subs and options.container != "webm" and options.preset not in AUDIO_FORMATS:
+        if with_ffmpeg and options.embed_subs and options.container != "webm" and options.preset not in AUDIO_FORMATS:
             args.append("--embed-subs")
-    if options.sponsorblock == "mark":
+    if with_ffmpeg and options.sponsorblock == "mark":
         args.append(f"--sponsorblock-mark={options.sponsorblock_categories}")
-    elif options.sponsorblock == "remove":
+    elif with_ffmpeg and options.sponsorblock == "remove":
         args.append(f"--sponsorblock-remove={options.sponsorblock_categories}")
     if options.rate_limit:
         args.append(f"--limit-rate={options.rate_limit}")
@@ -251,7 +263,17 @@ def ytdlp_command() -> list[str] | None:
     return None
 
 
+def tools_dir() -> Path:
+    """Outils téléchargés par l'application (yt-dlp, ffmpeg) : dans le dossier de données, jamais dans le système."""
+    return paths.data_dir() / "tools"
+
+
 def ffmpeg_dir() -> str | None:
+    """Dossier de ffmpeg : celui installé par PyPlayer d'abord, puis celui du système ; ``None`` si absent."""
+    name = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
+    own = tools_dir() / "ffmpeg" / name
+    if own.is_file():
+        return str(own.parent)
     found = shutil.which("ffmpeg")
     return str(Path(found).parent) if found else None
 
@@ -627,9 +649,12 @@ class DownloadManager:
         self.max_parallel = max(1, min(8, int(value)))
         self._schedule()
 
-    def shutdown(self) -> None:
-        """Arrête les processus (les ``.part`` restent : la reprise est automatique) et enregistre l'état."""
+    def shutdown(self, save: bool = True) -> None:
+        """Arrête les processus (les ``.part`` restent : la reprise est automatique) et enregistre l'état.
+        Idempotent : un second appel ne fait rien (important après une réinitialisation des données)."""
         with self._lock:
+            if self._closed:
+                return
             self._closed = True
             for item_id in list(self._timers):
                 self._cancel_timer(item_id)
@@ -639,8 +664,9 @@ class DownloadManager:
                 if item.state == State.RUNNING:
                     item.state = State.QUEUED                       # reprendra au prochain démarrage
                 item.speed, item.eta = 0.0, -1
-            self._dirty = True
-        self._save(force=True)
+            self._dirty = save
+        if save:
+            self._save(force=True)
         for thread in list(self._threads.values()):
             thread.join(timeout=3)
 
@@ -733,7 +759,10 @@ class DownloadManager:
     def _finish(self, item: DownloadItem, code: int, error_text: str, archived: bool) -> None:
         retry_in = None
         with self._lock:
-            if item.state != State.RUNNING:                       # mis en pause / annulé / supprimé pendant l'exécution
+            removed = self._items.get(item.id) is not item        # retiré de la liste pendant l'exécution
+            if removed:
+                self._last_emit.pop(item.id, None)
+            elif item.state != State.RUNNING:                     # mis en pause / annulé pendant l'exécution
                 self._last_emit.pop(item.id, None)
                 self._dirty = True
             elif code == 0:
@@ -755,7 +784,8 @@ class DownloadManager:
                     item.state, item.error = State.ERROR, message
                 item.speed, item.eta = 0.0, -1
             self._dirty = True
-        self._emit("state", item)
+        if not removed:                                           # un élément retiré ne doit jamais « réapparaître »
+            self._emit("state", item)
         self._schedule()
         self._save()
 
