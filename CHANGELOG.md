@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0 — version de publication corrigée
+
+### Corrigé
+* **Tests** : un test d'interface instable (téléchargements) ne peut plus être relancé par un événement tardif après son retrait ; la CI est verte.
+
 ## 0.2.0 — refonte de la logique, fonctions pro, tests durcis
 
 Le look de l'interface est conservé (mêmes widgets, couleurs, disposition) ; la logique, la persistance et les
