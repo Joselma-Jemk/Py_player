@@ -1268,7 +1268,12 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.session.resume_seeking and self._resume_timer.isActive():
             self._resume_timer.stop()
         if self._resume_ready:
-            self._record_position(position)
+            now = time.monotonic()
+            if now - self._last_record >= 0.5:          # ~2 écritures/s au lieu de ~20 : même précision utile, bien moins de CPU
+                self._last_record = now
+                self._record_position(position)
+
+    _last_record = 0.0
 
     def _record_position(self, position: int | None = None):
         """Enregistre où l'on en est dans le média chargé (jamais dans « la vidéo courante » de la playlist)."""

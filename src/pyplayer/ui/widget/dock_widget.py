@@ -553,8 +553,10 @@ class DockWidget(QtWidgets.QDockWidget):
         try:
             self.lstw.clear()
             self._items.clear()
-            for video in videos:
-                self._add_item(video, resume)
+            for position, video in enumerate(videos):
+                self._add_item(video, resume, check_exists=position < self.EXISTS_CHECK_NOW)
+            if len(videos) > self.EXISTS_CHECK_NOW:
+                QtCore.QTimer.singleShot(0, lambda: self._check_missing(self.EXISTS_CHECK_NOW))
             for item in self.get_video_items():
                 if id(item.video) in selected:
                     item.setSelected(True)
@@ -563,12 +565,26 @@ class DockWidget(QtWidgets.QDockWidget):
         finally:
             self.lstw.setUpdatesEnabled(True)
 
-    def _add_item(self, video: Video, resume=None) -> VideoListItem:
+    EXISTS_CHECK_NOW = 300      # au-delà, la vérification d'existence (un stat par fichier) se fait par paquets
+    EXISTS_CHECK_CHUNK = 200
+
+    def _check_missing(self, start: int):
+        """Vérifie par paquets l'existence des fichiers, sans bloquer l'interface sur de très grandes listes."""
+        end = min(self.lstw.count(), start + self.EXISTS_CHECK_CHUNK)
+        for row in range(start, end):
+            item = self.lstw.item(row)
+            if isinstance(item, VideoListItem):
+                item.missing = not item.video.exists()
+        if end < self.lstw.count():
+            QtCore.QTimer.singleShot(0, lambda: self._check_missing(end))
+
+    def _add_item(self, video: Video, resume=None, check_exists: bool = True) -> VideoListItem:
         progress, finished = (0.0, False)
         if resume is not None:
             progress, finished = resume.progress(video.path, video.duration), resume.is_finished(video.path)
         item = VideoListItem(self.lstw.count() + 1, video, progress, finished)
-        item.missing = not video.exists()
+        if check_exists:
+            item.missing = not video.exists()
         item.setData(QtCore.Qt.ItemDataRole.UserRole, item)
         self.lstw.addItem(item)
         self._items[id(video)] = item

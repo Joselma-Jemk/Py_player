@@ -49,13 +49,12 @@ def natural_key(text: str) -> list[object]:
 
 def natural_path_key(path: Path, root: Path | None = None) -> tuple[list[object], ...]:
     """Tri naturel composant par composant (dossiers puis fichiers dans l'ordre alphabétique)."""
-    relative = path
+    parts = path.parts
     if root is not None:
-        try:
-            relative = path.relative_to(root)
-        except ValueError:
-            relative = path
-    return tuple(natural_key(part) for part in relative.parts)
+        root_parts = root.parts
+        if parts[:len(root_parts)] == root_parts:        # sous la racine : composants relatifs (sans ``relative_to``, lent)
+            parts = parts[len(root_parts):]
+    return tuple(natural_key(part) for part in parts)
 
 
 def iter_media(root: str | os.PathLike[str], *, recursive: bool = True,

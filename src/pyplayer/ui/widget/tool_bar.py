@@ -423,12 +423,15 @@ class TimeLabelWidget(QtWidgets.QLabel):
         )
 
     def set_times(self, current_time = None, total_time = None):
-        """Définit les temps actuels et totaux"""
-        if current_time:
-            self.current_time = current_time
-        if total_time:
-            self.total_time = total_time
-        self.update_display()
+        """Définit les temps actuels et totaux. Le texte riche n'est recomposé que si une valeur change (une fois par
+        seconde de lecture, au lieu d'une vingtaine de fois)."""
+        changed = False
+        if current_time and current_time != self.current_time:
+            self.current_time, changed = current_time, True
+        if total_time and total_time != self.total_time:
+            self.total_time, changed = total_time, True
+        if changed:
+            self.update_display()
 
 class PlaylistButtonWidget(QtWidgets.QPushButton):
     def __init__(self, parent=None):
