@@ -123,6 +123,18 @@ def test_pause_resume_cancel_and_remove_from_the_context_actions(window, qapp, f
     assert panel.actions_for([]) == []
 
 
+def test_a_late_event_for_a_removed_item_does_not_bring_it_back(window, qapp, fake_downloads):
+    panel = window.downloads_panel
+    panel.add_text(URL)
+    assert wait_until(qapp, lambda: panel.model.rowCount() == 1, 5)
+    ghost = panel.model.rows[0]
+    window.downloads.remove(ghost.id)
+    assert wait_until(qapp, lambda: panel.model.rowCount() == 0, 5)
+    panel._on_event("progress", ghost)                 # événement resté en file d'attente avant le retrait
+    panel._on_event("state", ghost)
+    assert panel.model.rowCount() == 0
+
+
 def test_playing_an_unfinished_item_streams_it_and_a_finished_one_opens_the_file(window, qapp, fake_downloads, tmp_path):
     panel = window.downloads_panel
     streamed, opened = [], []

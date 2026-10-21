@@ -359,6 +359,8 @@ class DownloadsPanel(QtWidgets.QWidget):
     def _on_event(self, kind: str, item: dl.DownloadItem) -> None:
         if kind == "removed":
             self.model.remove(item.id)
+        elif self.manager.get(item.id) is None:
+            return                      # événement en file d'attente livré après le retrait : ne pas ré-afficher l'élément
         else:
             self.model.upsert(item)
         if kind == "state" and item.state == dl.State.DONE and item.filepath:

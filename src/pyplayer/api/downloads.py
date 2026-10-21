@@ -497,6 +497,8 @@ class DownloadManager:
         self._listeners.append(listener)
 
     def _emit(self, kind: str, item: DownloadItem) -> None:
+        if kind != "removed" and self._items.get(item.id) is not item:
+            return                      # élément retiré : un fil en fin de course ne doit pas le « ressusciter » dans l'interface
         for listener in list(self._listeners):
             try:
                 listener(kind, item)
