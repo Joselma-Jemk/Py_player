@@ -195,9 +195,11 @@ class DownloadsPanel(QtWidgets.QWidget):
     message = QtCore.Signal(str)
     finished_item = QtCore.Signal(object)            # élément terminé (auto-ajout à la playlist, bascule locale…)
     options_changed = QtCore.Signal()
+    ytdlp_missing = QtCore.Signal(str)               # texte à rejouer une fois yt-dlp installé
 
     def __init__(self, manager: dl.DownloadManager, settings, parent=None) -> None:
         super().__init__(parent)
+        self._warned_ffmpeg = False
         self.manager = manager
         self.settings = settings
         self.bridge = DownloadsBridge(self)
@@ -323,6 +325,12 @@ class DownloadsPanel(QtWidgets.QWidget):
         if not urls:
             self.message.emit("Aucun lien valide à télécharger.")
             return 0
+        if not self.manager.command_available():
+            self.ytdlp_missing.emit(text)                  # l'interface propose d'installer yt-dlp, puis relance l'ajout
+            return 0
+        if dl.ffmpeg_dir() is None and not self._warned_ffmpeg:
+            self._warned_ffmpeg = True
+            self.message.emit("FFmpeg absent : qualité limitée (menu Support → Installer FFmpeg)")
         accepted = 0
         for url in urls:
             kind = links.classify(url)

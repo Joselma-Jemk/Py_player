@@ -19,6 +19,8 @@ DEFAULTS: dict[str, Any] = {
     "aspect_mode": "fit",          # fit | stretch | fill
     "always_on_top": False,
     "thumbnails": True,            # miniatures au survol de la barre de progression
+    "auto_update_check": True,     # vérifie une fois par jour si une nouvelle version existe
+    "last_update_check": 0.0,      # horodatage de la dernière vérification
     "download_dir": "",            # dossier des téléchargements (vide = Vidéos/PyPlayer)
     "download_preset": "best",     # qualité choisie dans l'onglet Téléchargements
     "download_options": {},        # options avancées (voir DownloadOptions)

@@ -9,8 +9,8 @@ from pathlib import Path
 
 from PySide6 import QtCore, QtGui, QtMultimedia, QtWidgets
 
-from pyplayer import APP_NAME
-from pyplayer.api import downloads, links, mediainfo, media, online, paths, reset
+from pyplayer import APP_NAME, __version__
+from pyplayer.api import downloads, fetch, links, mediainfo, media, online, paths, reset, tools, updater
 from pyplayer.api.manager import PlaylistManager
 from pyplayer.api.media import format_duration, format_size
 from pyplayer.api.playback import PlaybackSession
@@ -18,7 +18,8 @@ from pyplayer.api.playlist import PlayMode, Playlist
 from pyplayer.api.subtitles import SubtitleTrack, find_sidecar, load_subtitle_file
 from pyplayer.api.video import Video
 from pyplayer.ui import theme
-from pyplayer.ui.dialogs import AboutDialog, MediaInfoDialog, NewPlaylistDialog, ResetDataDialog
+from pyplayer.ui.dialogs import (AboutDialog, MediaInfoDialog, NewPlaylistDialog, ResetDataDialog, TaskProgressDialog,
+                                 UpdateDialog)
 from pyplayer.ui.power import SleepInhibitor
 from pyplayer.ui.widget.dock_widget import DeletePlaylistDialog, DockWidget, VideoListItem
 from pyplayer.ui.widget.downloads_panel import DownloadOptionsDialog, DownloadsPanel
@@ -39,6 +40,10 @@ WHEEL_VOLUME_STEP = 5
 MediaStatus = QtMultimedia.QMediaPlayer.MediaStatus
 PlaybackState = QtMultimedia.QMediaPlayer.PlaybackState
 MEDIA_FILTER = ("Médias (" + " ".join(f"*{e}" for e in sorted(media.MEDIA_EXTENSIONS)) + ");;Tous les fichiers (*.*)")
+
+
+class _UpdateBridge(QtCore.QObject):
+    checked = QtCore.Signal(object, str, bool)      # (UpdateInfo | None, erreur, demandé à la main)
 
 
 class _ResolveSignals(QtCore.QObject):
@@ -154,6 +159,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._was_maximized = False
         self._dock_visible_before_fullscreen = True
 
+        self._update_bridge = _UpdateBridge(self)
+        self._update_bridge.checked.connect(self._on_update_checked)
+        self._pending_update: updater.UpdateInfo | None = None
         self._streaming_origin = ""                         # adresse saisie du flux en cours (bascule vers le fichier téléchargé)
         self._seen_links: set[str] = set()                  # liens déjà proposés (presse-papiers)
         self.downloads = downloads.DownloadManager(
@@ -164,6 +172,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.apply_settings()
         self.initialize_playlist_state()
         self.downloads.start()                              # reprend ce qui était en cours à la dernière fermeture
+        QtCore.QTimer.singleShot(8000, self._auto_check_updates)     # discret : 8 s après le démarrage, une fois par jour
 
     # ===================================================================
     # CONSTRUCTION DE L'INTERFACE (mise en page identique aux versions précédentes)
@@ -247,6 +256,10 @@ class MainWindow(QtWidgets.QMainWindow):
         m.act_download.triggered.connect(lambda: self.show_downloads(focus=True))
         m.act_download_options.triggered.connect(self.edit_download_options)
         m.act_watch_clipboard.toggled.connect(self.set_watch_clipboard)
+        m.act_check_update.triggered.connect(self.update_action)
+        m.act_auto_update.toggled.connect(self.set_auto_update)
+        m.act_install_ytdlp.triggered.connect(self.install_ytdlp_action)
+        m.act_install_ffmpeg.triggered.connect(self.install_ffmpeg_action)
         m.recentMenu.aboutToShow.connect(self.fill_recent_menu)
         m.act_import_playlist.triggered.connect(self.import_playlist_file)
         m.act_export_playlist.triggered.connect(self.export_playlist_file)
@@ -380,6 +393,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.set_aspect_mode(s.get("aspect_mode"), save=False)
         self.menubar_widget.act_always_on_top.setChecked(bool(s.get("always_on_top")))
         self.menubar_widget.act_watch_clipboard.setChecked(bool(s.get("watch_clipboard")))
+        self.menubar_widget.act_auto_update.setChecked(bool(s.get("auto_update_check")))
         self.downloads.set_max_parallel(int(s.get("download_max_parallel")))
         thumbs = bool(s.get("thumbnails"))
         self.menubar_widget.act_thumbnails.setChecked(thumbs)
@@ -426,6 +440,7 @@ class MainWindow(QtWidgets.QMainWindow):
         panel.message.connect(self.flash)
         panel.finished_item.connect(self._on_download_finished)
         panel.options_requested.connect(self.edit_download_options)
+        panel.ytdlp_missing.connect(lambda text: self.offer_install_ytdlp(then=lambda: panel.add_text(text)))
         toast = self.player_widget.toast
         toast.download_requested.connect(self.add_download)
         toast.play_requested.connect(self.open_url)
@@ -510,6 +525,146 @@ class MainWindow(QtWidgets.QMainWindow):
             self.resume.update(path, position, duration)         # open_paths reprendra à cet endroit
         self.flash("Fichier téléchargé : lecture en local", 3500)
         self.open_paths([str(path)])
+
+    # ------------------------------------------------------------------ tâches longues, outils, mises à jour
+    def run_task(self, title: str, label: str, work):
+        """Exécute ``work(progress, cancelled)`` avec une fenêtre de progression. Retourne ``(réussi, résultat|erreur)``.
+        Isolée pour pouvoir être remplacée dans les tests."""
+        dialog = TaskProgressDialog(title, label, work, self)
+        dialog.exec()
+        return dialog.ok, (dialog.result if dialog.ok else dialog.error)
+
+    def inform_error(self, title: str, message: str):
+        if "annulé" not in message.lower():
+            self.inform(title, message)
+
+    def offer_install_ytdlp(self, then=None):
+        """yt-dlp manquant : propose de l'installer (version officielle, vérifiée) puis de continuer ce qui était demandé."""
+        if self.confirm("yt-dlp est nécessaire",
+                        "Cette fonction a besoin de yt-dlp, qui n'est pas installé.",
+                        "PyPlayer peut le télécharger (environ 35 Mo) depuis le dépôt officiel github.com/yt-dlp/yt-dlp, "
+                        "vérifier son empreinte SHA-256 et le ranger dans ses propres données. Installer maintenant ?"):
+            self._install_ytdlp(then)
+
+    def _install_ytdlp(self, then=None):
+        ok, value = self.run_task("Installation de yt-dlp", "Téléchargement de yt-dlp…",
+                                  lambda progress, cancelled: tools.install_ytdlp(progress=progress, cancelled=cancelled))
+        if not ok:
+            self.inform_error("Installation impossible", str(value))
+            return
+        self.flash(f"yt-dlp installé ({online.version() or 'version inconnue'})", 4000)
+        if then is not None:
+            then()
+
+    def install_ytdlp_action(self):
+        """Menu : installe yt-dlp, ou le met à jour s'il existe une version plus récente."""
+        ok, status = self.run_task("yt-dlp", "Recherche de la dernière version…",
+                                   lambda progress, cancelled: tools.ytdlp_status())
+        if ok and status.installed and status.up_to_date:
+            self.flash("yt-dlp est à jour", 3000)
+        elif ok and status.up_to_date is None and status.installed:
+            self.inform("yt-dlp", f"Impossible de vérifier la dernière version : {status.detail}")
+        else:
+            self.offer_install_ytdlp() if not (ok and status.installed) else self._install_ytdlp()
+
+    def install_ffmpeg_action(self):
+        if downloads.ffmpeg_dir() and tools.ffmpeg_installed():
+            if not self.confirm("FFmpeg est déjà installé", "Le télécharger de nouveau (mise à jour) ?"):
+                return
+        elif not self.confirm("Installer FFmpeg",
+                              "FFmpeg permet la qualité maximale (fusion image + son), la conversion en MP3 et "
+                              "l'intégration des pochettes et chapitres.",
+                              "PyPlayer va le télécharger (environ 100 Mo) depuis github.com/yt-dlp/FFmpeg-Builds, "
+                              "vérifier son empreinte SHA-256 et le ranger dans ses propres données. Continuer ?"):
+            return
+        ok, value = self.run_task("Installation de FFmpeg", "Téléchargement de FFmpeg…",
+                                  lambda progress, cancelled: tools.install_ffmpeg(progress=progress, cancelled=cancelled))
+        if ok:
+            self.flash("FFmpeg installé : qualité maximale activée", 4000)
+        else:
+            self.inform_error("Installation impossible", str(value))
+
+    def _auto_check_updates(self):
+        if os.environ.get(updater.NO_CHECK_ENV) or not self.settings.get("auto_update_check"):
+            return
+        if updater.should_check(float(self.settings.get("last_update_check"))):
+            self.check_for_updates(manual=False)
+
+    def check_for_updates(self, manual: bool = True):
+        """Cherche une nouvelle version dans un fil ; le résultat revient par ``_on_update_checked``."""
+        import threading
+
+        def work():
+            try:
+                info, error = updater.check(__version__), ""
+            except fetch.FetchError as exc:
+                info, error = None, str(exc)
+            except Exception as exc:  # noqa: BLE001 -- jamais d'exception perdue dans un fil
+                logger.exception("Vérification des mises à jour")
+                info, error = None, str(exc)
+            self._update_bridge.checked.emit(info, error, manual)
+
+        threading.Thread(target=work, name="pyp-update-check", daemon=True).start()
+        if manual:
+            self.flash("Recherche de mises à jour…", 2500)
+
+    def _on_update_checked(self, info, error: str, manual: bool):
+        if error:
+            if manual:
+                self.inform("Mise à jour", f"Impossible de vérifier les mises à jour :\n{error}")
+            return
+        self.settings.set("last_update_check", time.time())
+        if info is None:
+            self._pending_update = None
+            self.menubar_widget.act_check_update.setText("Rechercher une mise à jour…")
+            if manual:
+                self.flash(f"PyPlayer {__version__} est à jour", 3500)
+            return
+        self._pending_update = info
+        self.menubar_widget.act_check_update.setText(f"Mettre à jour vers {info.version}…")
+        if manual:
+            self.show_update(info)
+        else:
+            self.flash(f"PyPlayer {info.version} est disponible — menu Support → Mettre à jour", 9000)
+
+    def update_action(self):
+        """Menu « Mise à jour » : montre la version trouvée, ou lance une recherche."""
+        if self._pending_update is not None:
+            self.show_update(self._pending_update)
+        else:
+            self.check_for_updates(manual=True)
+
+    def show_update(self, info):
+        dialog = UpdateDialog(info, __version__, self)
+        dialog.exec()
+        if dialog.choice == UpdateDialog.PAGE:
+            QtGui.QDesktopServices.openUrl(QtCore.QUrl(info.page_url))
+        elif dialog.choice == UpdateDialog.INSTALL:
+            self.install_update(info)
+
+    def install_update(self, info):
+        ok, value = self.run_task("Mise à jour de PyPlayer", f"Téléchargement de PyPlayer {info.version}…",
+                                  lambda progress, cancelled: updater.apply(info, progress=progress, cancelled=cancelled))
+        if not ok:
+            self.inform_error("Mise à jour impossible", str(value))
+            return
+        result = value
+        if result.action == "run-installer":
+            if self.confirm("Installer la mise à jour",
+                            "PyPlayer va se fermer, installer la nouvelle version puis se relancer.", "Continuer ?"):
+                updater.run_installer(result.path)
+                self.close()
+        elif result.action == "restart":
+            self.inform("Mise à jour installée", "PyPlayer va redémarrer pour utiliser la nouvelle version.")
+            updater.relaunch()
+            self.close()
+        else:
+            self.inform("Mise à jour téléchargée",
+                        f"La nouvelle version (vérifiée) est dans :\n{result.path}\n\nFermez PyPlayer puis lancez ce fichier.")
+            self._reveal_path(str(result.path))
+
+    def set_auto_update(self, enabled: bool):
+        self.settings.set("auto_update_check", bool(enabled))
 
     def _reveal_path(self, path: str):
         target = Path(path)
@@ -708,6 +863,11 @@ class MainWindow(QtWidgets.QMainWindow):
         if token != self._online_token:
             return                                   # l'utilisateur a ouvert autre chose entre-temps
         if media is None:
+            if "yt-dlp n'est pas installé" in error:
+                origin = self._online_origin
+                self.flash("yt-dlp est nécessaire pour lire cette adresse", 4000)
+                self.offer_install_ytdlp(then=lambda: self.open_url(origin))
+                return
             self.flash(f"Lecture en ligne impossible : {error}", 8000)
             return
         label = media.title + (f"  ({format_duration(media.duration_ms)})" if media.duration_ms else "")

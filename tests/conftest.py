@@ -26,6 +26,7 @@ def isolated_home(tmp_path, monkeypatch):
     monkeypatch.setenv("PYPLAYER_HOME", str(home))
     monkeypatch.setenv("HOME", str(tmp_path / "_userhome"))
     monkeypatch.setenv("USERPROFILE", str(tmp_path / "_userhome"))
+    monkeypatch.setenv("PYPLAYER_NO_UPDATE_CHECK", "1")          # aucun test ne contacte le réseau pour les mises à jour
     yield home
 
 

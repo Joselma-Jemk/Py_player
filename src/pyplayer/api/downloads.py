@@ -486,6 +486,10 @@ class DownloadManager:
         self._last_save = 0.0
         self.load()
 
+    def command_available(self) -> bool:
+        """Vrai si yt-dlp peut être lancé (sinon l'interface propose de l'installer)."""
+        return self._command_provider() is not None
+
     # ------------------------------------------------------------------ écouteurs
     def subscribe(self, listener: Listener) -> None:
         self._listeners.append(listener)

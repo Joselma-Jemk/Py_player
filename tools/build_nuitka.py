@@ -50,7 +50,9 @@ def main() -> int:
         "--include-qt-plugins=" + ",".join(QT_PLUGINS["common"] + QT_PLUGINS.get(system, [])),
         "--include-package=pyplayer",
         f"--include-data-dir={SRC / 'pyplayer' / 'resources'}=pyplayer/resources",
-        "--nofollow-import-to=pytest,hypothesis,tests",
+        # yt-dlp n'est pas embarqué : PyPlayer le télécharge lui-même (vérifié, à jour) ; l'inclure ajouterait des milliers
+        # de modules d'extracteurs et ne pourrait plus se mettre à jour sans nouvelle version de l'application.
+        "--nofollow-import-to=pytest,hypothesis,tests,yt_dlp",
         "--output-dir=" + str(ROOT / "build" / "nuitka"),
         "--output-filename=" + name,
         "--company-name=PyPlayer",

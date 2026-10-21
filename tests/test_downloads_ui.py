@@ -346,3 +346,246 @@ def test_threads_never_touch_the_interface_directly(window, qapp, fake_downloads
     window.downloads_panel.add_text(URL)
     assert wait_until(qapp, lambda: len(seen) >= 2, 5)
     assert all(seen)
+
+
+# ----------------------------------------------------------------- outils (yt-dlp, ffmpeg) et mises à jour
+def test_missing_ytdlp_offers_to_install_then_replays_the_link(window, qapp, fake_downloads, monkeypatch):
+    window.downloads._command_provider = lambda: None                   # yt-dlp absent
+    asked, installed = [], []
+    monkeypatch.setattr(window, "confirm", lambda title, message, informative="": asked.append(title) or True)
+
+    def fake_install(progress=None, cancelled=None, **kw):
+        installed.append(1)
+        window.downloads._command_provider = lambda: ["fake-ytdlp"]       # ... et le voilà installé
+        return Path("/tmp/yt-dlp")
+    monkeypatch.setattr("pyplayer.api.tools.install_ytdlp", fake_install)
+    monkeypatch.setattr(window, "run_task", lambda title, label, work: (True, work(lambda *a: None, lambda: False)))
+    window.downloads_panel.add_text(URL)
+    assert asked == ["yt-dlp est nécessaire"] and installed == [1]
+    assert wait_until(qapp, lambda: window.downloads_panel.model.rowCount() == 1, 5)    # le lien a été rejoué
+
+
+def test_declining_the_ytdlp_install_changes_nothing(window, qapp, monkeypatch):
+    window.downloads._command_provider = lambda: None
+    ran = []
+    monkeypatch.setattr(window, "confirm", lambda *a, **k: False)
+    monkeypatch.setattr(window, "run_task", lambda *a: ran.append(1) or (True, None))
+    window.downloads_panel.add_text(URL)
+    assert ran == [] and window.downloads_panel.model.rowCount() == 0
+
+
+def test_a_failed_install_is_reported_without_crashing(window, qapp, monkeypatch):
+    shown = []
+    monkeypatch.setattr(window, "inform", lambda title, message: shown.append((title, message)))
+    monkeypatch.setattr(window, "run_task", lambda *a: (False, "Somme de contrôle incorrecte"))
+    window._install_ytdlp()
+    assert shown == [("Installation impossible", "Somme de contrôle incorrecte")]
+    shown.clear()
+    monkeypatch.setattr(window, "run_task", lambda *a: (False, "Téléchargement annulé."))
+    window._install_ytdlp()
+    assert shown == []                                                   # une annulation n'est pas une erreur à afficher
+
+
+def test_online_playback_without_ytdlp_offers_the_install_and_resumes(window, qapp, monkeypatch):
+    from pyplayer.api import online
+    calls, offered = [], []
+    monkeypatch.setattr(online, "resolve", lambda page: (_ for _ in ()).throw(online.OnlineError(
+        "yt-dlp n'est pas installé : Support → Mettre à jour yt-dlp")))
+    monkeypatch.setattr(window, "offer_install_ytdlp", lambda then=None: offered.append(then))
+    window.open_url("https://site.exemple/watch?v=1")
+    assert wait_until(qapp, lambda: len(offered) == 1, 5)
+    monkeypatch.setattr(window, "open_url", lambda url: calls.append(url))
+    offered[0]()                                                         # « then » rejoue l'ouverture
+    assert calls == ["https://site.exemple/watch?v=1"]
+
+
+def test_ffmpeg_absence_is_announced_once(window, qapp, fake_downloads, monkeypatch):
+    monkeypatch.setattr(dl, "ffmpeg_dir", lambda: None)
+    window.downloads_panel.add_text(URL)
+    assert "FFmpeg absent" in window.osd.currentMessage()
+    window.osd.clear()
+    window.downloads_panel.add_text("https://vimeo.com/55555")
+    assert "FFmpeg absent" not in window.osd.currentMessage()
+
+
+def test_ytdlp_menu_action_updates_only_when_needed(window, qapp, monkeypatch):
+    from pyplayer.api.tools import ToolStatus
+    installs = []
+    monkeypatch.setattr(window, "_install_ytdlp", lambda then=None: installs.append(1))
+    monkeypatch.setattr(window, "offer_install_ytdlp", lambda then=None: installs.append("offre"))
+    monkeypatch.setattr(window, "run_task", lambda *a: (True, ToolStatus("yt-dlp_linux", True, True)))
+    window.install_ytdlp_action()
+    assert installs == [] and "à jour" in window.osd.currentMessage()
+    monkeypatch.setattr(window, "run_task", lambda *a: (True, ToolStatus("yt-dlp_linux", True, False)))
+    window.install_ytdlp_action()
+    assert installs == [1]                                               # installé mais périmé : mise à jour directe
+    monkeypatch.setattr(window, "run_task", lambda *a: (True, ToolStatus("yt-dlp_linux", False, False)))
+    window.install_ytdlp_action()
+    assert installs == [1, "offre"]                                      # absent : on propose l'installation
+
+
+def test_manual_update_check_with_a_new_version_shows_the_dialog_and_installs(window, qapp, monkeypatch):
+    from pyplayer.api import updater
+    info = updater.UpdateInfo("9.9.9", "v9.9.9", "## Nouveautés\n- tout", "https://github.com/x/y/releases/tag/v9.9.9",
+                              "linux-binary", "pyplayer-9.9.9-linux-x86_64", "https://github.com/x/y/a", "a" * 64, 1000)
+    monkeypatch.setattr(updater, "check", lambda version: info)
+    chosen = {}
+
+    class FakeDialog:
+        INSTALL, PAGE, LATER = 1, 2, 0
+
+        def __init__(self, shown_info, current, parent=None):
+            chosen["info"], chosen["current"] = shown_info, current
+            self.choice = 1
+
+        def exec(self):
+            return 1
+    from pyplayer.ui import main_window as mw
+    monkeypatch.setattr(mw, "UpdateDialog", FakeDialog)
+    applied = []
+    monkeypatch.setattr(window, "install_update", lambda i: applied.append(i))
+    window.check_for_updates(manual=True)
+    assert wait_until(qapp, lambda: bool(applied), 5)
+    assert applied == [info] and chosen["info"] is info and window._pending_update is info
+    assert "9.9.9" in window.menubar_widget.act_check_update.text()
+    assert window.settings.get("last_update_check") > 0
+
+
+def test_automatic_check_is_silent_when_up_to_date_and_discreet_when_not(window, qapp, monkeypatch):
+    from pyplayer.api import updater
+    monkeypatch.setattr(updater, "check", lambda version: None)
+    window.check_for_updates(manual=False)
+    pump(qapp, 200)
+    assert window._pending_update is None and "à jour" not in window.osd.currentMessage()
+    info = updater.UpdateInfo("9.9.9", "v9.9.9", "", "https://x", "manual")
+    monkeypatch.setattr(updater, "check", lambda version: info)
+    window.check_for_updates(manual=False)
+    assert wait_until(qapp, lambda: window._pending_update is info, 5)
+    assert "9.9.9 est disponible" in window.osd.currentMessage()
+
+
+def test_update_check_errors_are_silent_in_background_and_explained_when_manual(window, qapp, monkeypatch):
+    from pyplayer.api import updater
+    monkeypatch.setattr(updater, "check", lambda version: (_ for _ in ()).throw(fetch_error("Connexion impossible")))
+    shown = []
+    monkeypatch.setattr(window, "inform", lambda title, message: shown.append(message))
+    window.check_for_updates(manual=False)
+    pump(qapp, 300)
+    assert shown == []
+    window.check_for_updates(manual=True)
+    assert wait_until(qapp, lambda: bool(shown), 5) and "Connexion impossible" in shown[0]
+    assert window.settings.get("last_update_check") == 0.0              # un échec ne repousse pas la prochaine vérification
+
+
+def fetch_error(message):
+    from pyplayer.api.fetch import FetchError
+    return FetchError(message)
+
+
+def test_startup_check_respects_the_setting_the_environment_and_the_daily_schedule(window, qapp, monkeypatch):
+    checks = []
+    monkeypatch.setattr(window, "check_for_updates", lambda manual=True: checks.append(manual))
+    window._auto_check_updates()                                         # variable d'environnement des tests : rien
+    assert checks == []
+    monkeypatch.delenv("PYPLAYER_NO_UPDATE_CHECK")
+    window.settings.set("auto_update_check", False)
+    window._auto_check_updates()
+    assert checks == []
+    window.settings.set("auto_update_check", True)
+    window.settings.set("last_update_check", __import__("time").time() - 100)      # vérifié il y a 100 s : trop tôt
+    window._auto_check_updates()
+    assert checks == []
+    window.settings.set("last_update_check", 0.0)
+    window._auto_check_updates()
+    assert checks == [False]
+
+
+def test_install_update_branches(window, qapp, monkeypatch):
+    from pyplayer.api import updater
+    info = updater.UpdateInfo("9.9.9", "v9.9.9", "", "https://x", "windows-installer", "setup.exe", "https://github.com/a", "a" * 64)
+    events = []
+    monkeypatch.setattr(updater, "run_installer", lambda path: events.append(("installer", path)))
+    monkeypatch.setattr(updater, "relaunch", lambda: events.append(("relaunch",)))
+    monkeypatch.setattr(window, "close", lambda: events.append(("close",)) or True)
+    monkeypatch.setattr(window, "inform", lambda title, message: events.append(("inform", title)))
+    monkeypatch.setattr(window, "_reveal_path", lambda p: events.append(("reveal", p)))
+    monkeypatch.setattr(window, "confirm", lambda *a, **k: True)
+    monkeypatch.setattr(window, "run_task", lambda *a: (True, updater.ApplyResult("run-installer", Path("/tmp/setup.exe"))))
+    window.install_update(info)
+    assert events == [("installer", Path("/tmp/setup.exe")), ("close",)]
+    events.clear()
+    monkeypatch.setattr(window, "confirm", lambda *a, **k: False)            # l'utilisateur refuse au dernier moment
+    window.install_update(info)
+    assert events == []
+    monkeypatch.setattr(window, "run_task", lambda *a: (True, updater.ApplyResult("restart", Path("/opt/pyplayer"))))
+    window.install_update(info)
+    assert events == [("inform", "Mise à jour installée"), ("relaunch",), ("close",)]
+    events.clear()
+    monkeypatch.setattr(window, "run_task", lambda *a: (True, updater.ApplyResult("saved", Path("/tmp/new.exe"))))
+    window.install_update(info)
+    assert events == [("inform", "Mise à jour téléchargée"), ("reveal", "/tmp/new.exe")]
+    events.clear()
+    monkeypatch.setattr(window, "run_task", lambda *a: (False, "Somme de contrôle incorrecte"))
+    window.install_update(info)
+    assert events == [("inform", "Mise à jour impossible")]
+
+
+# ----------------------------------------------------------------- fenêtres de progression et de mise à jour
+def test_task_dialog_runs_in_a_thread_reports_progress_and_returns_the_result(qapp):
+    from pyplayer.ui.dialogs import TaskProgressDialog
+    seen = []
+
+    def work(progress, cancelled):
+        for step in (250, 500, 1000):
+            progress(step, 1000)
+            seen.append(threading.current_thread() is threading.main_thread())
+        return "terminé"
+    dialog = TaskProgressDialog("Tâche", "Travail…", work)
+    QtCore.QTimer.singleShot(0, dialog.show)
+    dialog.exec()
+    assert dialog.ok and dialog.result == "terminé" and seen == [False, False, False]    # travail hors du fil de l'UI
+    assert dialog.bar.value() == 1000
+    dialog.deleteLater()
+
+
+def test_task_dialog_reports_errors_and_supports_cancellation(qapp):
+    from pyplayer.ui.dialogs import TaskProgressDialog
+
+    def broken(progress, cancelled):
+        raise RuntimeError("réseau coupé")
+    failing = TaskProgressDialog("Tâche", "…", broken)
+    QtCore.QTimer.singleShot(0, failing.show)
+    failing.exec()
+    assert not failing.ok and failing.error == "réseau coupé"
+    failing.deleteLater()
+
+    def waiting(progress, cancelled):
+        while not cancelled():
+            time.sleep(0.01)
+        raise RuntimeError("Téléchargement annulé.")
+    import time
+    cancelling = TaskProgressDialog("Tâche", "…", waiting)
+    QtCore.QTimer.singleShot(0, cancelling.show)
+    QtCore.QTimer.singleShot(150, cancelling.btn_cancel.click)
+    cancelling.exec()
+    assert not cancelling.ok and "annulé" in cancelling.error
+    cancelling.deleteLater()
+
+
+def test_update_dialog_choices_and_manual_mode(qapp):
+    from pyplayer.api import updater
+    from pyplayer.ui.dialogs import UpdateDialog
+    ok = updater.UpdateInfo("0.3.0", "v0.3.0", "## Nouveautés\n- tout", "https://x", "windows-installer", "s.exe",
+                            "https://github.com/a", "a" * 64, 5_000_000)
+    dialog = UpdateDialog(ok, "0.2.0")
+    assert dialog.btn_install.isEnabled() and "SHA-256" in dialog.lbl_trust.text() and "Nouveautés" in dialog.notes.toPlainText()
+    dialog.btn_install.click()
+    assert dialog.choice == UpdateDialog.INSTALL
+    manual = updater.UpdateInfo("0.3.0", "v0.3.0", "", "https://x", "manual")
+    dialog2 = UpdateDialog(manual, "0.2.0")
+    assert not dialog2.btn_install.isEnabled() and "automatiquement" in dialog2.lbl_trust.text()
+    assert "Aucune note" in dialog2.notes.toPlainText()
+    dialog2.btn_page.click()
+    assert dialog2.choice == UpdateDialog.PAGE
+    dialog.deleteLater()
+    dialog2.deleteLater()

@@ -460,3 +460,155 @@ class ResetDataDialog(QtWidgets.QDialog):
 
     def _update_state(self, *_):
         self.btn_reset.setEnabled(self.confirm_box.isChecked() and bool(self.selected_categories()))
+
+
+class TaskProgressDialog(QtWidgets.QDialog):
+    """Exécute un travail long (téléchargement vérifié…) hors du fil de l'interface, avec progression et annulation.
+
+    ``work(progress, cancelled)`` : ``progress(done, total)`` met la barre à jour, ``cancelled()`` vaut vrai si
+    l'utilisateur a annulé. Après ``exec()``, lire ``ok``, ``result`` ou ``error``."""
+
+    progressed = QtCore.Signal(int, int)
+    finished_ok = QtCore.Signal(object)
+    failed = QtCore.Signal(str)
+
+    def __init__(self, title: str, label: str, work, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setModal(True)
+        self.setMinimumWidth(420)
+        self.work = work
+        self.ok = False
+        self.result = None
+        self.error = ""
+        self._cancel = False
+        self._started = False
+        self.setStyleSheet(f"""
+            QDialog {{ background-color: {constant.PRINCIPAL_COLOR}; }}
+            QLabel {{ color: {constant.PRINCIPAL_TEXT_COLOR}; }}
+            QProgressBar {{ background-color: {constant.THIRD_COLOR}; border: none; border-radius: 4px; height: 8px; }}
+            QProgressBar::chunk {{ background-color: {constant.OK_ONE_COLOR}; border-radius: 4px; }}
+            QPushButton {{ padding: 8px 16px; border-radius: 6px; font-weight: 600;
+                          background-color: {constant.THIRD_COLOR}; color: {constant.PRINCIPAL_TEXT_COLOR}; }}
+            QPushButton:hover {{ background-color: {constant.HOVER_COLOR}; }}
+        """)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 16)
+        layout.setSpacing(12)
+        self.label = QtWidgets.QLabel(label)
+        self.label.setWordWrap(True)
+        self.detail = QtWidgets.QLabel("")
+        self.detail.setStyleSheet("color: #a0a0a0; font-size: 12px;")
+        self.bar = QtWidgets.QProgressBar()
+        self.bar.setTextVisible(False)
+        self.bar.setRange(0, 0)                         # indéterminée tant que la taille est inconnue
+        self.btn_cancel = QtWidgets.QPushButton("Annuler")
+        row = QtWidgets.QHBoxLayout()
+        row.addStretch(1)
+        row.addWidget(self.btn_cancel)
+        layout.addWidget(self.label)
+        layout.addWidget(self.bar)
+        layout.addWidget(self.detail)
+        layout.addLayout(row)
+        self.btn_cancel.clicked.connect(self._on_cancel)
+        self.progressed.connect(self._on_progress)
+        self.finished_ok.connect(self._on_ok)
+        self.failed.connect(self._on_failed)
+
+    def showEvent(self, event):  # noqa: N802 -- surcharge Qt
+        super().showEvent(event)
+        if not self._started:
+            self._started = True
+            import threading
+            threading.Thread(target=self._run, name="pyp-task", daemon=True).start()
+
+    def _run(self) -> None:
+        try:
+            result = self.work(lambda done, total: self.progressed.emit(int(done), int(total)), lambda: self._cancel)
+        except Exception as error:  # noqa: BLE001 -- l'erreur est affichée, jamais perdue dans le fil
+            self.failed.emit(str(error) or error.__class__.__name__)
+        else:
+            self.finished_ok.emit(result)
+
+    def _on_progress(self, done: int, total: int) -> None:
+        if total > 0:
+            self.bar.setRange(0, 1000)
+            self.bar.setValue(int(1000 * min(1.0, done / total)))
+            self.detail.setText(f"{media.format_size(done)} / {media.format_size(total)}")
+        else:
+            self.detail.setText(media.format_size(done))
+
+    def _on_cancel(self) -> None:
+        self._cancel = True
+        self.btn_cancel.setEnabled(False)
+        self.detail.setText("Annulation…")
+
+    def _on_ok(self, result) -> None:
+        self.ok, self.result = True, result
+        self.accept()
+
+    def _on_failed(self, message: str) -> None:
+        self.ok, self.error = False, message
+        self.reject()
+
+
+class UpdateDialog(QtWidgets.QDialog):
+    """Annonce une nouvelle version avec ses notes ; l'utilisateur choisit de l'installer, de voir la page ou d'attendre."""
+
+    INSTALL, PAGE, LATER = 1, 2, 0
+
+    def __init__(self, info, current_version: str, parent=None):
+        super().__init__(parent)
+        self.info = info
+        self.choice = self.LATER
+        self.setWindowTitle("Mise à jour disponible")
+        self.setModal(True)
+        self.resize(560, 460)
+        self.setStyleSheet(f"""
+            QDialog {{ background-color: {constant.PRINCIPAL_COLOR}; }}
+            QLabel {{ color: {constant.PRINCIPAL_TEXT_COLOR}; }}
+            QTextBrowser {{ background-color: {constant.SECONDARY_COLOR}; color: {constant.PRINCIPAL_TEXT_COLOR};
+                           border: 1px solid {constant.THIRD_COLOR}; border-radius: 6px; padding: 8px; }}
+            QPushButton {{ padding: 8px 16px; border-radius: 6px; font-weight: 600;
+                          background-color: {constant.THIRD_COLOR}; color: {constant.PRINCIPAL_TEXT_COLOR}; }}
+            QPushButton:hover {{ background-color: {constant.HOVER_COLOR}; }}
+        """)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 16)
+        layout.setSpacing(12)
+        heading = QtWidgets.QLabel(f"PyPlayer {info.version} est disponible")
+        heading.setStyleSheet("font-size: 16px; font-weight: bold;")
+        sub = QtWidgets.QLabel(f"Vous utilisez la version {current_version}."
+                               + (f" Téléchargement : {media.format_size(info.size)}." if info.size else ""))
+        sub.setStyleSheet("color: #a0a0a0;")
+        self.notes = QtWidgets.QTextBrowser()
+        self.notes.setOpenExternalLinks(True)
+        self.notes.setMarkdown(info.notes or "Aucune note de version.")
+        self.lbl_trust = QtWidgets.QLabel(
+            "Le fichier est vérifié par sa somme SHA-256 avant installation." if info.can_install else
+            "Cette version ne peut pas s'installer automatiquement sur ce système : ouvrez la page pour la télécharger.")
+        self.lbl_trust.setWordWrap(True)
+        self.lbl_trust.setStyleSheet("color: #a0a0a0; font-size: 12px;")
+        layout.addWidget(heading)
+        layout.addWidget(sub)
+        layout.addWidget(self.notes, 1)
+        layout.addWidget(self.lbl_trust)
+        buttons = QtWidgets.QHBoxLayout()
+        buttons.addStretch(1)
+        self.btn_later = QtWidgets.QPushButton("Plus tard")
+        self.btn_page = QtWidgets.QPushButton("Voir la page")
+        self.btn_install = QtWidgets.QPushButton("Mettre à jour maintenant")
+        self.btn_install.setEnabled(info.can_install)
+        self.btn_install.setStyleSheet(f"QPushButton {{ background-color: {GREEN}; color: white; }}"
+                                       "QPushButton:hover { background-color: #66BB6A; }"
+                                       f"QPushButton:disabled {{ background-color: {constant.THIRD_COLOR}; color: #8e8e93; }}")
+        for button in (self.btn_later, self.btn_page, self.btn_install):
+            buttons.addWidget(button)
+        layout.addLayout(buttons)
+        self.btn_later.clicked.connect(lambda: self._choose(self.LATER))
+        self.btn_page.clicked.connect(lambda: self._choose(self.PAGE))
+        self.btn_install.clicked.connect(lambda: self._choose(self.INSTALL))
+
+    def _choose(self, choice: int) -> None:
+        self.choice = choice
+        self.accept()
