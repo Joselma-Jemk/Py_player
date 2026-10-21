@@ -1,0 +1,16 @@
+name: Proposer une fonction
+description: Une idée pour améliorer PyPlayer
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: Le besoin
+      description: Quel problème voulez-vous résoudre ?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: L'idée
+      description: Comment cela pourrait fonctionner (sans changer le look général de l'interface).

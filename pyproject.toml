@@ -8,9 +8,26 @@ dynamic = ["version"]
 description = "Lecteur vidéo/audio local minimaliste basé sur PySide6 (Qt 6)"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { file = "Licence.txt" }
+license = { file = "LICENSE" }
 authors = [{ name = "Josias KOUTCHANOU" }]
+keywords = ["video", "audio", "player", "pyside6", "qt", "yt-dlp", "downloader"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Video :: Display",
+    "Topic :: Multimedia :: Sound/Audio :: Players",
+]
 dependencies = ["PySide6>=6.6"]
+
+[project.urls]
+Homepage = "https://github.com/Joselma-Jemk/Py_player"
+Issues = "https://github.com/Joselma-Jemk/Py_player/issues"
+Changelog = "https://github.com/Joselma-Jemk/Py_player/blob/master/CHANGELOG.md"
 
 [project.optional-dependencies]
 online = ["yt-dlp>=2025.1.1"]

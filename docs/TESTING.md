@@ -1,6 +1,7 @@
 # Stratégie de tests
 
-287 tests, **94 % de couverture** (branches comprises) mesurée sur `pyplayer`, exécutés hors écran
+Plus de 560 tests (566 au dernier passage complet, 3 ignorés selon la machine), dont la couverture de branches de
+l'API a été mesurée à 94 % sur la version précédente, exécutés hors écran
 (`QT_QPA_PLATFORM=offscreen`) avec de **vrais médias** générés par ffmpeg. Durée : ~1 min 30.
 
 ```bash

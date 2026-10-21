@@ -14,7 +14,7 @@ instance unique et « Ouvrir avec… ».
 | Fenêtre Réglages (raccourcis personnalisables, dossier des captures, pas de saut, style des sous-titres) | aujourd'hui tout passe par `settings.json` |
 | Recherche/filtre dans la playlist, file « lire ensuite », signets, minuteur d'arrêt | pur code applicatif |
 | Pochette et tags des fichiers audio dans la liste, visualiseur simple | `QMediaMetaData` fournit titre/artiste/album/pochette |
-| Vignette de prévisualisation au survol de la barre de progression | second `QMediaPlayer` muet ou images ffmpeg |
+| ~~Vignette de prévisualisation au survol de la barre de progression~~ | fait (v0.2.0) |
 | Intégration système (touches multimédia globales : MPRIS sous Linux, SMTC sous Windows, Now Playing sous macOS) | dépend de la plateforme, à tester sur chacune |
 
 ## Priorité 2 — exige un autre backend (libmpv)

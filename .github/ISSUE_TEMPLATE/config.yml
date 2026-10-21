@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Signaler une faille de sécurité
+    url: https://github.com/Joselma-Jemk/Py_player/security/advisories/new
+    about: Merci de ne pas ouvrir d'issue publique pour une vulnérabilité.

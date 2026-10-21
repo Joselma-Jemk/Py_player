@@ -1,0 +1,36 @@
+name: Signaler un bug
+description: Quelque chose ne marche pas comme prévu
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Ce qui se passe
+      description: Qu'avez-vous fait, qu'attendiez-vous, que s'est-il passé ?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version de PyPlayer
+      description: Affichée par `pyplayer --version`
+    validations:
+      required: true
+  - type: dropdown
+    id: system
+    attributes:
+      label: Système
+      options: [Windows, Linux, Autre]
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Installation
+      options: [Installateur Windows, Binaire autonome, pip / sources]
+  - type: textarea
+    id: log
+    attributes:
+      label: Journal
+      description: Fichier `pyplayer.log` dans `~/.pyplayer` (lancez avec `--debug` si possible). Retirez toute information personnelle.
+      render: text
