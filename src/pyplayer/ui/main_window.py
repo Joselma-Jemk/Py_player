@@ -123,6 +123,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.resume = self.manager.resume
         self.inhibitor = SleepInhibitor()
         self._skip_save_on_close = False
+        self._playing_playlist_id: str | None = None      # playlist du média en cours (cf. playback_playlist)
 
         self.session = PlaybackSession()           # état de lecture explicite (api/playback.py)
         self._was_maximized = False
@@ -319,6 +320,15 @@ class MainWindow(QtWidgets.QMainWindow):
     @property
     def active_playlist(self) -> Playlist:
         return self.manager.active
+
+    @property
+    def playback_playlist(self) -> Playlist:
+        """Playlist dont on est en train de lire un média. Peut différer de la playlist *affichée* (``active_playlist``) :
+        parcourir une autre playlist pendant la lecture ne doit pas changer ce qui jouera ensuite."""
+        playlist = self.manager.get(self._playing_playlist_id)
+        if playlist is not None and (self._loaded_video is None or self._loaded_video in playlist):
+            return playlist
+        return self.active_playlist
 
     @property
     def current_video(self) -> Video | None:
@@ -722,9 +732,12 @@ class MainWindow(QtWidgets.QMainWindow):
     # ===================================================================
     # LECTURE
     # ===================================================================
-    def play_video(self, video: Video | None = None, *, silent_if_missing: bool = False):
-        """Charge et lit ``video`` (par défaut la vidéo courante de la playlist active)."""
-        playlist = self.active_playlist
+    def play_video(self, video: Video | None = None, *, silent_if_missing: bool = False,
+                   playlist: Playlist | None = None):
+        """Charge et lit ``video`` (par défaut la vidéo courante de la playlist affichée).
+
+        ``playlist`` : celle dont on poursuit la lecture (enchaînement automatique) ; sinon la playlist affichée."""
+        playlist = playlist or self.active_playlist
         video = video or playlist.ensure_current()
         if video is None:
             self.flash("Aucune vidéo à lire : ajoutez des fichiers à la playlist")
@@ -740,6 +753,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
 
         self._record_position()                       # mémorise l'endroit où l'on quitte le média précédent
+        self._playing_playlist_id = playlist.id
         if playlist.current is not video:
             playlist.set_current(video, remember=False)
         self.session.begin_load(video, self.resume.position(video.path) if self.settings.get("resume_playback") else 0)
@@ -784,22 +798,23 @@ class MainWindow(QtWidgets.QMainWindow):
         self.player_widget.set_subtitle_text("")
 
     def next_video(self):
-        playlist = self.active_playlist
+        playlist = self.playback_playlist
         video = playlist.next()
         if video is None:
             self.flash("Fin de la playlist")
             return
-        self.play_video(video)
+        self.play_video(video, playlist=playlist)
 
     def previous_video(self):
         if self.player.position() > RESTART_THRESHOLD_MS and self.player.playbackState() != PlaybackState.StoppedState:
             self.player.setPosition(0)
             return
-        video = self.active_playlist.previous()
+        playlist = self.playback_playlist
+        video = playlist.previous()
         if video is None:
             self.player.setPosition(0)
             return
-        self.play_video(video)
+        self.play_video(video, playlist=playlist)
 
     def on_media_status_changed(self, status):
         if status == MediaStatus.LoadedMedia:
@@ -821,7 +836,7 @@ class MainWindow(QtWidgets.QMainWindow):
             size = self._media_resolution()
             changed = video.update_metadata(width=size.width(), height=size.height(), duration=duration)
             if changed:
-                self.active_playlist.mark_dirty()
+                self.playback_playlist.mark_dirty()           # la playlist qui contient le média, pas celle affichée
             if seek_to is not None:
                 # Tant que le lecteur n'a pas atteint la position de reprise, ses positions « avant saut »
                 # ne doivent pas écraser la mémoire de reprise.
@@ -841,7 +856,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self._update_item_progress(video, 1.0, True)
         self.session.on_ended()
 
-        playlist = self.active_playlist
+        playlist = self.playback_playlist
         nxt = playlist.next(auto=True) if video is not None else None
         if nxt is None:
             self.stop_playing()
@@ -853,22 +868,23 @@ class MainWindow(QtWidgets.QMainWindow):
             self.player.play()
             self.session.resume_ready = True
         else:
-            self.play_video(nxt, silent_if_missing=True)
+            self.play_video(nxt, silent_if_missing=True, playlist=playlist)
 
     def _on_media_invalid(self):
         video = self._loaded_video
         message = self.player.errorString() or "format non pris en charge"
         self.flash(f"Lecture impossible : {video.name if video else ''} — {message}", 6000)
         logger.warning("Média invalide %s : %s", video.path if video else "?", message)
-        if self.session.on_invalid(len(self.active_playlist)):
+        if self.session.on_invalid(len(self.playback_playlist)):
             QtCore.QTimer.singleShot(600, self._skip_after_error)
 
     def _skip_after_error(self):
         if self.player.mediaStatus() != MediaStatus.InvalidMedia:
             return
-        nxt = self.active_playlist.next(auto=False)
+        playlist = self.playback_playlist
+        nxt = playlist.next(auto=False)
         if nxt is not None and nxt is not self._loaded_video:
-            self.play_video(nxt, silent_if_missing=True)
+            self.play_video(nxt, silent_if_missing=True, playlist=playlist)
 
     def on_player_error(self, error, message):
         logger.warning("Erreur lecteur : %s (%s)", message, error)
@@ -931,7 +947,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.setWindowTitle(APP_NAME)
             return
         item = self.dock_widget.find_item(video)
-        index = item.index if item else self.active_playlist.index_of(video) + 1
+        index = item.index if item else self.playback_playlist.index_of(video) + 1
         resolution = video.resolution
         extra = f" ▌ Résolution : {resolution}" if resolution else ""
         self.statusbar_widget.set_title(f"     {index} ➤  {video.name}{extra}")

@@ -57,10 +57,18 @@ def icon_font_family() -> str:
     return _FONT_FAMILY
 
 
-def load_icon_font(size: int = 14) -> QtGui.QFont:
+def load_icon_font(size: int = 14, *, bold: bool = False) -> QtGui.QFont:
+    """Police d'icônes ; ``bold`` épaissit les glyphes (boutons de lecture)."""
     family = icon_font_family()
     font = QtGui.QFont(family) if family else QtGui.QFont()
     font.setPointSize(size)
+    if bold:
+        font.setWeight(QtGui.QFont.Weight.Bold)
+        try:   # la police est variable : on règle vraiment l'axe de graisse (Qt ≥ 6.7), sinon l'épaississement serait invisible
+            font.setVariableAxis(QtGui.QFont.Tag("wght"), 700.0)
+            font.setVariableAxis(QtGui.QFont.Tag("GRAD"), 120.0)
+        except (AttributeError, TypeError):
+            pass
     return font
 
 

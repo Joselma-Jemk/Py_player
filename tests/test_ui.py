@@ -213,6 +213,7 @@ def test_resume_applied_once_on_load(window, qapp, tmp_path, sample_dir):
 @needs_ffmpeg
 def test_position_goes_to_loaded_video_not_selected_one(window, qapp, tmp_path, sample_dir):
     """Audit 1.6 : changer de playlist pendant la lecture ne contamine pas une autre vidéo."""
+    window.set_speed(1.0)                                  # la vidéo de 3 s ne doit pas se terminer pendant le test
     window.open_paths([str(sample_dir / "ep1.mp4")])
     assert wait_until(qapp, lambda: window._resume_ready)
     playing = window._loaded_video
@@ -221,9 +222,9 @@ def test_position_goes_to_loaded_video_not_selected_one(window, qapp, tmp_path, 
     window.initialize_playlist_state()
     other_video = other[2]
     other.set_current(other_video)
-    window.player.setPosition(2500)
-    pump(qapp, 300)
-    assert window._loaded_video is playing
+    window.player.setPosition(1200)
+    pump(qapp, 150)
+    assert window._loaded_video is playing and window.playback_playlist is not other
     assert window.resume.progress(other_video.path) == 0.0
 
 

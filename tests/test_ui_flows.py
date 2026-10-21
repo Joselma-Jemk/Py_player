@@ -426,3 +426,44 @@ def test_stop_keeps_the_resume_position(window, qapp, tmp_path):
     assert window.resume.position(long) >= 7500                  # toujours là après le retour à la position 0
     window.play_or_pause()                                        # et « lire » reprend à cet endroit
     assert wait_until(qapp, lambda: window._resume_ready and window.player.position() >= 7000, 6)
+
+
+# ----------------------------------------------------------------- lecture : la playlist qui joue n'est pas celle qui est affichée
+@needs_ffmpeg
+def test_browsing_another_playlist_does_not_hijack_what_plays_next(window, qapp, media_dir):
+    from pyplayer.api.media import scan_folder
+    a = window.manager.create_playlist("A")
+    a.add_many(scan_folder(media_dir("pl_a", 3)))
+    b = window.manager.create_playlist("B")
+    b.add_many(scan_folder(media_dir("pl_b", 3)))
+    window.manager.set_active(a.id)
+    window.initialize_playlist_state()
+    window.play_video(a[0])
+    assert wait_until(qapp, lambda: window._loaded_video is a[0], 5)
+
+    window.manager.set_active(b.id)                       # on parcourt B pendant que A joue
+    window.initialize_playlist_state()
+    assert window.active_playlist is b and window.playback_playlist is a
+
+    window.next_video()                                   # « suivant » : toujours dans A
+    assert window._loaded_video is a[1] and window.playback_playlist is a
+    window._on_media_ended()                              # fin de média : A[2], pas B
+    assert window._loaded_video is a[2]
+    assert b.current is None or b.current not in a.videos
+    window.previous_video()
+    assert window._loaded_video in a.videos
+    assert "0 ➤" not in window.statusbar_widget.lbl_title.text()      # l'indice vient de la playlist qui joue
+    window.stop_playing()
+
+
+@needs_ffmpeg
+def test_playback_playlist_falls_back_to_the_displayed_one_when_the_playing_one_is_deleted(window, qapp, media_dir):
+    from pyplayer.api.media import scan_folder
+    a = window.manager.create_playlist("Ephemere")
+    a.add_many(scan_folder(media_dir("pl_c", 2)))
+    window.manager.set_active(a.id)
+    window.play_video(a[0])
+    assert wait_until(qapp, lambda: window._loaded_video is a[0], 5)
+    window.stop_playing()
+    window.manager.remove_playlist(a.id)
+    assert window.playback_playlist is window.active_playlist

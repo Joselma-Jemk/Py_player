@@ -37,7 +37,7 @@ class VolumeWidget(QtWidgets.QWidget):
         self.lbl.setFixedWidth(25)
 
         # Configuration du bouton mute (police d'icônes explicite : ne pas dépendre du repli de police du système)
-        self.btn.setFont(theme.load_icon_font(14))
+        self.btn.setFont(theme.load_icon_font(14, bold=True))
         self.btn.setFixedSize(32, 32)
         self.btn.setCheckable(True)
         self.mute_state = False
@@ -254,7 +254,7 @@ class PlayerControlsWidget(QtWidgets.QWidget):
         self.setup_connections()  # Nouvelle méthode pour les connexions
 
     def icon_font_initialize(self, size=14):
-        self.icon_font = theme.load_icon_font(size)
+        self.icon_font = theme.load_icon_font(size, bold=True)       # glyphes des boutons de lecture en gras
 
     def create_widgets(self):
         self.btn_play_pause = QtWidgets.QPushButton("\ue037")
