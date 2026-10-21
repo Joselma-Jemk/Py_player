@@ -717,6 +717,9 @@ class DownloadManager:
             process = self._process_factory(args)
             with self._lock:
                 self._procs[item.id] = process
+                closed = self._closed
+            if closed:                                      # arrêt demandé entre l'état « en cours » et la création du processus
+                self._stop_process(item.id)
             for line in process.stdout:
                 event = parse_line(line)
                 if event is None:

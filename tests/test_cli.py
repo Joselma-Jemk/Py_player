@@ -319,7 +319,7 @@ def test_tools_status_and_install_paths():
     out, err = io.StringIO(), io.StringIO()
     code = cli.cmd_tools(parse("tools", "install", "all"), out=out, err=err,
                          install_ytdlp=lambda progress=None: Path("/d/yt-dlp"), install_ffmpeg=lambda progress=None: Path("/d/ffmpeg"))
-    assert code == 0 and "yt-dlp installé : /d/yt-dlp" in out.getvalue() and "FFmpeg installé" in out.getvalue()
+    assert code == 0 and f"yt-dlp installé : {Path('/d/yt-dlp')}" in out.getvalue() and "FFmpeg installé" in out.getvalue()
 
     def failing(progress=None):
         raise fetch.FetchError("hors ligne")

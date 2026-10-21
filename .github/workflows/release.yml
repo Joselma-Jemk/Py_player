@@ -85,7 +85,7 @@ jobs:
           help_output=$("./$binary" download --help 2>&1) || true
           echo "$help_output" | head -5
           echo "$help_output" | grep -q -- "--playlist" || { echo "::error title=CLI::« download --help » n'affiche rien"; exit 1; }
-          "./$binary" download > /dev/null 2>&1; code=$?
+          code=0; "./$binary" download > /dev/null 2>&1 || code=$?
           test "$code" = "2" || { echo "::error title=CLI::code de sortie attendu 2 sans lien, obtenu $code"; exit 1; }
       - name: Installateur Windows (Inno Setup)
         if: matrix.label == 'windows'
