@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.1 — thème sombre indépendant du système
+
+### Corrigé
+* **Menus illisibles sous Windows en thème clair** : les sous-menus (« Vitesse de lecture », pistes audio,
+  sous-titres, format de l'image…) s'ouvraient sur fond blanc avec un texte clair. L'application impose maintenant
+  son thème sombre (style Fusion et palette sombre complète) : menus, sous-menus, menus contextuels, boîtes de
+  dialogue et info-bulles ne dépendent plus du thème du système.
+
+### Tests
+* Un test parcourt tous les menus réels de la barre sur un système simulé en thème clair et vérifie qu'ils restent
+  sombres (il échoue si le thème est retiré).
+
 ## 0.3.0 — version de publication corrigée
 
 ### Corrigé
