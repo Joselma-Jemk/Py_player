@@ -1,6 +1,6 @@
 """PyPlayer — lecteur vidéo/audio local basé sur PySide6 (Qt 6)."""
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 APP_NAME = "PyPlayer"
 APP_ORGANIZATION = "Joselma"
 APP_AUTHOR = "Josias KOUTCHANOU"

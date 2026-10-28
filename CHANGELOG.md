@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.2 — carte de notification et clavier
+
+### Ajouté
+* **Carte de notification** en bas du lecteur : « Lecture » et le titre au démarrage (effacée au bout de
+  2,5 s), « Pause » et le titre tant qu'on est en pause, et chaque action (volume, vitesse, capture, téléchargement…).
+  Une action passe devant la pause, qui revient ensuite.
+
+### Corrigé
+* **Raccourcis clavier** : les flèches du lecteur marchent quel que soit le widget qui a le focus, y compris
+  quand le panneau de playlist est détaché ; le focus revient au lecteur après un double-clic, une boîte de
+  dialogue ou un menu. ↑/↓ restent à la liste quand elle a le focus.
+
 ## 0.3.1 — thème sombre indépendant du système
 
 ### Corrigé
