@@ -5,7 +5,7 @@ from __future__ import annotations
 import functools
 import logging
 
-from PySide6 import QtCore, QtGui
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from pyplayer.api import paths
 
@@ -111,6 +111,52 @@ def _glyph_icon(name: str, size: int = 24, color: str = "#ffffff") -> QtGui.QIco
 
 def app_icon() -> QtGui.QIcon:
     return QtGui.QIcon(str(paths.app_icon_path()))
+
+
+def dark_palette() -> QtGui.QPalette:
+    """Palette sombre complète, indépendante du thème du système.
+
+    Sans elle, tout widget qui n'a pas de feuille de style propre (sous-menus, menus contextuels,
+    boîtes de dialogue) retombait sur la palette claire de Windows : fond blanc, texte clair."""
+    role = QtGui.QPalette.ColorRole
+    group = QtGui.QPalette.ColorGroup
+    palette = QtGui.QPalette()
+    colors = {
+        role.Window: SECONDARY_COLOR,
+        role.WindowText: PRINCIPAL_TEXT_COLOR,
+        role.Base: PRINCIPAL_COLOR,
+        role.AlternateBase: SECONDARY_COLOR,
+        role.Text: PRINCIPAL_TEXT_COLOR,
+        role.Button: THIRD_COLOR,
+        role.ButtonText: PRINCIPAL_TEXT_COLOR,
+        role.BrightText: "#ffffff",
+        role.ToolTipBase: SECONDARY_COLOR,
+        role.ToolTipText: PRINCIPAL_TEXT_COLOR,
+        role.PlaceholderText: "#8e8e93",
+        role.Highlight: GREEN,
+        role.HighlightedText: "#ffffff",
+        role.Link: OK_ONE_COLOR,
+        role.Light: HOVER_COLOR,
+        role.Midlight: THIRD_COLOR,
+        role.Mid: SECONDARY_COLOR,
+        role.Dark: PRINCIPAL_COLOR,
+        role.Shadow: "#000000",
+    }
+    for color_role, color in colors.items():
+        palette.setColor(color_role, QtGui.QColor(color))
+    disabled = QtGui.QColor("#666666")
+    for color_role in (role.WindowText, role.Text, role.ButtonText):
+        palette.setColor(group.Disabled, color_role, disabled)
+    return palette
+
+
+def apply_dark_theme(app: QtWidgets.QApplication) -> None:
+    """Impose le thème sombre à toute l'application, quel que soit le thème du système.
+
+    Le style Fusion est le même sur tous les systèmes et respecte entièrement la palette ; le style
+    natif de Windows, lui, peignait ses propres menus clairs."""
+    app.setStyle("Fusion")
+    app.setPalette(dark_palette())
 
 
 def tooltip_html(text: str, color: str = GREEN) -> str:

@@ -69,6 +69,8 @@ def main(argv: list[str] | None = None) -> int:
     app.setDesktopFileName("pyplayer")
 
     from pyplayer.ui import theme
+
+    theme.apply_dark_theme(app)  # avant toute fenêtre : l'apparence ne dépend pas du système
     from pyplayer.ui.single_instance import SingleInstance
 
     files = _normalize(args.files)
