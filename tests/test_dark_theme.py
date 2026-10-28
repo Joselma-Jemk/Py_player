@@ -44,6 +44,44 @@ def test_le_texte_desactive_reste_lisible_sur_le_fond_sombre():
     assert _luminance(desactive) > _luminance(fond) + 40
 
 
+def _tous_les_menus(menu, vus=None):
+    vus = set() if vus is None else vus
+    if id(menu) in vus:
+        return
+    vus.add(id(menu))
+    yield menu
+    for action in menu.actions():
+        if action.menu() is not None:
+            yield from _tous_les_menus(action.menu(), vus)
+
+
+def test_chaque_menu_de_la_barre_est_sombre_sur_un_systeme_clair(qapp, theme_isole):
+    """L'audit complet : système en thème clair + style natif, thème de l'application appliqué.
+
+    Avant le correctif, les 10 menus et sous-menus de la barre sortaient à plus de 70 % de pixels
+    blancs (texte clair sur fond blanc). Le test parcourt TOUS les menus réels, récursivement."""
+    from pyplayer.ui.widget.menu_bar import MenuBarWidget
+
+    qapp.setStyle("Windows")
+    clair = QtGui.QPalette()
+    clair.setColor(QtGui.QPalette.ColorRole.Window, QtGui.QColor("#f0f0f0"))
+    clair.setColor(QtGui.QPalette.ColorRole.Base, QtGui.QColor("#ffffff"))
+    clair.setColor(QtGui.QPalette.ColorRole.WindowText, QtGui.QColor("#000000"))
+    qapp.setPalette(clair)
+    theme.apply_dark_theme(qapp)
+
+    barre = MenuBarWidget()
+    menus = [m for a in barre.actions() if a.menu() is not None for m in _tous_les_menus(a.menu())]
+    assert len(menus) >= 8  # on a bien atteint les sous-menus (vitesse, pistes, format…)
+    for menu in menus:
+        menu.show()
+        qapp.processEvents()
+        image = menu.grab().toImage()
+        pixel = image.pixelColor(5, image.height() - 5)
+        assert _luminance(pixel) < 80, f"menu clair : {menu.title() or menu.objectName() or menu}"
+        menu.close()
+
+
 def test_un_menu_sans_feuille_de_style_est_sombre_avec_son_sous_menu(qapp, theme_isole):
     """Le cas du bug : un sous-menu n'a pas de feuille de style propre, il lit la palette."""
     theme.apply_dark_theme(qapp)
