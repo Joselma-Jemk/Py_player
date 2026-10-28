@@ -17,7 +17,7 @@ from pyplayer.api.playback import PlaybackSession
 from pyplayer.api.playlist import PlayMode, Playlist
 from pyplayer.api.subtitles import SubtitleTrack, find_sidecar, load_subtitle_file
 from pyplayer.api.video import Video
-from pyplayer.ui import theme
+from pyplayer.ui import key_router, theme
 from pyplayer.ui.dialogs import (AboutDialog, MediaInfoDialog, NewPlaylistDialog, ResetDataDialog, TaskProgressDialog,
                                  UpdateDialog)
 from pyplayer.ui.power import SleepInhibitor
@@ -168,6 +168,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.manager.data_dir / "downloads.json", max_parallel=int(self.settings.get("download_max_parallel")))
 
         self.setup_ui()
+        self.key_router = key_router.PlayerKeyRouter(self)   # flèches du lecteur, quel que soit le focus
         self._setup_downloads()
         self.apply_settings()
         self.initialize_playlist_state()
@@ -221,6 +222,7 @@ class MainWindow(QtWidgets.QMainWindow):
                        self.toolbar_widget.volume_widget.slider, self.player_widget.slider):
             widget.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
 
+        self.player_widget.setFocusPolicy(QtCore.Qt.FocusPolicy.ClickFocus)  # un clic sur la vidéo y ramène le focus
         self.menubar_widget.act_stop.setEnabled(False)
         self.toolbar_widget.player_controls.btn_stop.setEnabled(False)
         self.player_widget.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.NoContextMenu)
@@ -1082,6 +1084,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if isinstance(item, VideoListItem):
             self.active_playlist.set_current(item.video)
             self.play_video(item.video)
+            self.player_widget.setFocus(QtCore.Qt.FocusReason.OtherFocusReason)  # ↑ ↓ règlent alors le volume
 
     # ===================================================================
     # LECTURE
@@ -1847,23 +1850,41 @@ class MainWindow(QtWidgets.QMainWindow):
     # ===================================================================
     # CLAVIER (flèches : actives tant que la liste ou un champ de saisie n'a pas le focus)
     # ===================================================================
-    def keyPressEvent(self, event: QtGui.QKeyEvent):
-        key = event.key()
-        modifiers = event.modifiers()
+    def handle_navigation_key(self, key, modifiers) -> bool:
+        """Flèches du lecteur : ←/→ avancent ou reculent (Maj : 60 s au lieu de 10 s), ↑/↓ règlent le
+        volume. Rend vrai si la touche a été prise. Appelée par le routeur d'application (focus
+        n'importe où, dock détaché compris) comme par `keyPressEvent`."""
+        if modifiers & (QtCore.Qt.KeyboardModifier.ControlModifier | QtCore.Qt.KeyboardModifier.AltModifier):
+            return False
         step = 60_000 if modifiers & QtCore.Qt.KeyboardModifier.ShiftModifier else 10_000
-        plain = not (modifiers & (QtCore.Qt.KeyboardModifier.ControlModifier | QtCore.Qt.KeyboardModifier.AltModifier))
-        if plain and key == QtCore.Qt.Key.Key_Left:
+        if key == QtCore.Qt.Key.Key_Left:
             self.player_widget.seek_relative(-step)
-        elif plain and key == QtCore.Qt.Key.Key_Right:
+        elif key == QtCore.Qt.Key.Key_Right:
             self.player_widget.seek_relative(step)
-        elif plain and key == QtCore.Qt.Key.Key_Up:
+        elif key == QtCore.Qt.Key.Key_Up:
             self.change_volume(VOLUME_STEP)
-        elif plain and key == QtCore.Qt.Key.Key_Down:
+        elif key == QtCore.Qt.Key.Key_Down:
             self.change_volume(-VOLUME_STEP)
         else:
+            return False
+        return True
+
+    def keyPressEvent(self, event: QtGui.QKeyEvent):
+        if self.handle_navigation_key(event.key(), event.modifiers()):
+            event.accept()
+        else:
             super().keyPressEvent(event)
-            return
-        event.accept()
+
+    def focus_player(self) -> None:
+        """Rend le focus clavier au lecteur s'il n'est pas déjà dans un champ de saisie ou une liste."""
+        focus = QtWidgets.QApplication.focusWidget()
+        if focus is None or not isinstance(focus, (QtWidgets.QAbstractItemView, *key_router._TEXT_INPUTS)):
+            self.player_widget.setFocus(QtCore.Qt.FocusReason.OtherFocusReason)
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QtCore.QEvent.Type.ActivationChange and self.isActiveWindow():
+            QtCore.QTimer.singleShot(0, self.focus_player)   # après une boîte de dialogue ou un menu
 
     # ===================================================================
     # DIVERS
