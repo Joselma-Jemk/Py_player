@@ -54,7 +54,7 @@ class PlayerKeyRouter(QtCore.QObject):
         dock = getattr(self._window, "dock_widget", None)
         return (self._window, dock) if dock is not None and dock.isFloating() else (self._window,)
 
-    def eventFilter(self, obj, event) -> bool:  # noqa: N802 -- surcharge Qt
+    def eventFilter(self, obj, event) -> bool:
         if event.type() != QtCore.QEvent.Type.KeyPress:
             return False
         app = QtWidgets.QApplication
