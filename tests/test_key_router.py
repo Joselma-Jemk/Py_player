@@ -92,6 +92,20 @@ def test_le_dock_detache_garde_avance_recul_et_volume(qapp, fenetre):
     assert fenetre.appels == ["seek-10000", "seek+10000", "seek+60000"]
 
 
+def test_les_raccourcis_de_menu_marchent_depuis_le_dock_detache(qapp, fenetre):
+    """Espace, M… ne sont pas des flèches : ils passent par les raccourcis de la fenêtre, et doivent
+    rester actifs quand le dock est une autre fenêtre (mesuré partout dans l'audit des raccourcis)."""
+    dock = fenetre.dock_widget
+    dock.setFloating(True)
+    dock.show()
+    dock.activateWindow()
+    dock.lstw.setFocus()
+    qapp.processEvents()
+    etat_avant = fenetre.audio_output.isMuted()
+    _appuyer(qapp, dock.lstw, K.Key_M)
+    assert fenetre.audio_output.isMuted() != etat_avant
+
+
 def test_une_liste_remplie_garde_haut_et_bas_mais_gauche_droite_marchent(qapp, fenetre):
     liste = fenetre.dock_widget.lstw
     for i in range(5):

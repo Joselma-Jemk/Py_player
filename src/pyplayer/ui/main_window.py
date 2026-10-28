@@ -24,6 +24,7 @@ from pyplayer.ui.power import SleepInhibitor
 from pyplayer.ui.widget.dock_widget import DeletePlaylistDialog, DockWidget, VideoListItem
 from pyplayer.ui.widget.downloads_panel import DownloadOptionsDialog, DownloadsPanel
 from pyplayer.ui.widget.menu_bar import HelpDialog, MenuBarWidget
+from pyplayer.ui.widget import osd
 from pyplayer.ui.widget.player import PlayerWidget
 from pyplayer.ui.widget.tool_bar import ToolBarWidget
 
@@ -1249,6 +1250,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def on_playback_state_changed(self, state):
         playing = state == PlaybackState.PlayingState
+        notice_state = {PlaybackState.PlayingState: osd.PLAYING,
+                        PlaybackState.PausedState: osd.PAUSED}.get(state, osd.STOPPED)
+        self.osd.show_playback(notice_state, self.title_text if notice_state != osd.STOPPED else "")
         self.toolbar_widget.player_controls.set_playing(playing)
         act = self.menubar_widget.act_play
         act.setIcon(theme.icon("pause" if playing else "play"))

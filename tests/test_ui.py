@@ -662,7 +662,9 @@ def test_osd_stays_inside_the_host_and_never_steals_the_mouse(qapp):
     osd = Osd(host)
     osd.show_message("x" * 400, 0)                                         # très long : borné à la largeur
     osd.set_info("2×")
-    assert osd.message.x() == MARGIN and osd.message.y() == MARGIN
+    # La carte de notification est en bas, au centre (et non plus en haut à gauche).
+    assert osd.message.x() == max(MARGIN, (host.width() - osd.message.width()) // 2)
+    assert osd.message.y() + osd.message.height() <= host.height()
     assert osd.message.width() <= host.width() - 2 * MARGIN
     assert osd.info.x() + osd.info.width() <= host.width()
     assert osd.message.testAttribute(QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents)
